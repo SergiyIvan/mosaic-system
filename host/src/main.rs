@@ -10,7 +10,7 @@ pub fn execute_wasm_runner() -> anyhow::Result<()> {
     let x = 55;
     let y = 55;
     let sum = sync_add::add(component_path, x, y)?;
-    println!("hosted_value + {} = {sum}", y);
+    println!("{}*2 + {} = {sum}", x, y);
     Ok(())
 }
 

@@ -49,8 +49,8 @@ pub fn add(path: PathBuf, x: u32, y: u32) -> wasmtime::Result<u32> {
     // bindings::docs::adder::hosted::add_to_linker::<States, States>(&mut linker, |state: &mut States| state)?;
     linker
         .instance("docs:adder/hosted@0.1.0")?
-        .func_wrap("host-function", |_store, _params: ()| {
-            Ok((100u32,))
+        .func_wrap("host-function", |_store, (x,): (u32,)| {
+            Ok((x * 2,))
         })?;
 
     // Instantiate the component as an instance of the `adder` world,
