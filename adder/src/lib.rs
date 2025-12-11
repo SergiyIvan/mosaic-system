@@ -17,6 +17,9 @@ mod bindings {
 
 use bindings::docs::adder::hosted::host_function;
 use bindings::docs::adder::hosted::host_function_print;
+use bindings::docs::adder::hosted::host_function_get_point;
+use bindings::docs::adder::hosted::host_function_print_point;
+use bindings::docs::adder::hosted::Point;
 
 /// Struct off of which the implementation will hang
 ///
@@ -25,6 +28,9 @@ struct AdderComponent;
 
 impl bindings::exports::docs::adder::add::Guest for AdderComponent {
     fn add(x: u32, y: u32) -> u32 {
+        let p: Point = host_function_get_point(x, y);
+        host_function_print_point(p);
+
         host_function_print("TEST");
         host_function(x) + y
     }

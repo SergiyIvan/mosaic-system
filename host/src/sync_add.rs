@@ -42,6 +42,13 @@ pub fn add(path: PathBuf, x: u32, y: u32) -> wasmtime::Result<u32> {
         println!("{}", x);
         Ok(())
     })?;
+    hosted.func_wrap("host-function-get-point", |_store, (x,y,): (u32,u32)| {
+        Ok((bindings::docs::adder::hosted::Point { x, y },))
+    })?;
+    hosted.func_wrap("host-function-print-point", |_store, (p,): (bindings::docs::adder::hosted::Point,)| {
+        println!("[{}, {}]", p.x, p.y);
+        Ok(())
+    })?;
 
     // Instantiate the component as an instance of the `adder` world,
     // with the generated bindings

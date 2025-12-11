@@ -5,8 +5,15 @@ interface add {
 }
 
 interface hosted {
+    record point {
+        x: u32,
+        y: u32,
+    }
+
     host-function: func(x: u32) -> u32;
     host-function-print: func(x: string);
+    host-function-get-point: func(x: u32, y: u32) -> point;
+    host-function-print-point: func(p: point);
 }
 
 world adder {
