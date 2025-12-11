@@ -16,6 +16,7 @@ mod bindings {
 }
 
 use bindings::docs::adder::hosted::host_function;
+use bindings::docs::adder::hosted::host_function_print;
 
 /// Struct off of which the implementation will hang
 ///
@@ -24,6 +25,7 @@ struct AdderComponent;
 
 impl bindings::exports::docs::adder::add::Guest for AdderComponent {
     fn add(x: u32, y: u32) -> u32 {
+        host_function_print("TEST");
         host_function(x) + y
     }
 }

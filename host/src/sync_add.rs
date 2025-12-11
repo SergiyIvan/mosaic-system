@@ -15,15 +15,6 @@ mod bindings {
     });
 }
 
-// Hosted function implementation.
-// pub struct MyHost;
-
-// impl bindings::docs::adder::hosted::Host for States { // for MyHost?
-//     fn host_function(&mut self) -> u32 {
-//         42
-//     }
-// }
-
 
 pub fn add(path: PathBuf, x: u32, y: u32) -> wasmtime::Result<u32> {
     // Construct engine
@@ -43,15 +34,14 @@ pub fn add(path: PathBuf, x: u32, y: u32) -> wasmtime::Result<u32> {
     // see: https://github.com/WebAssembly/wasi-io
     wasmtime_wasi::p2::add_to_linker_sync(&mut linker).expect("Could not add wasi to linker");
 
-    // Adding host function.
-    // let mut my_host = MyHost;
-    // bindings::docs::adder::hosted::add_to_linker::<States, MyHost>(&mut linker, |state: &mut States| &mut state.host)?;
-    // bindings::docs::adder::hosted::add_to_linker::<States, States>(&mut linker, |state: &mut States| state)?;
-    linker
-        .instance("docs:adder/hosted@0.1.0")?
-        .func_wrap("host-function", |_store, (x,): (u32,)| {
-            Ok((x * 2,))
-        })?;
+    let mut hosted = linker.instance("docs:adder/hosted@0.1.0")?;
+    hosted.func_wrap("host-function", |_store, (x,): (u32,)| {
+        Ok((x * 2,))
+    })?;
+    hosted.func_wrap("host-function-print", |_store, (x,): (String,)| {
+        println!("{}", x);
+        Ok(())
+    })?;
 
     // Instantiate the component as an instance of the `adder` world,
     // with the generated bindings

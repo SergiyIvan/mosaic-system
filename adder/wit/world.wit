@@ -6,6 +6,7 @@ interface add {
 
 interface hosted {
     host-function: func(x: u32) -> u32;
+    host-function-print: func(x: string);
 }
 
 world adder {
