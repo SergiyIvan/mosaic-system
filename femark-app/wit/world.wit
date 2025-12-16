@@ -1,0 +1,31 @@
+package docs:femark-app@0.1.0;
+
+interface hosted {
+    process-markdown-to-html: func(input: string) -> result<html-output, highlight-error>;
+    process-markdown-to-html-with-frontmatter: func(input: string, extract-frontmatter: bool) -> result<html-output, highlight-error>;
+    
+    variant highlight-error {
+        no-lang,
+        no-highlighter,
+        could-not-build-highlighter(string),
+        string-generation-error(string)
+    }
+    record html-output {
+        toc: option<string>,
+        content: string,
+        frontmatter: option<owned-frontmatter>
+    }
+    record owned-code-block {
+        language: option<string>,
+        source: string
+    }
+    record owned-frontmatter {
+        title: option<string>,
+        code-block: option<owned-code-block>
+    }
+}
+
+world app {
+    export wasi:cli/run@0.2.7;
+    import hosted;
+}

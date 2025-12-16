@@ -5,7 +5,7 @@ mod sync_add;
 
 
 pub fn execute_wasm_runner() -> anyhow::Result<()> {
-    let component_path: PathBuf = PathBuf::from("/home/sergiyivan/work/mosaic/system/adder/target/wasm32-wasip2/release/adder.wasm");
+    let component_path: PathBuf = PathBuf::from("/home/sergiyivan/work/mosaic/system/simple-example/adder/target/wasm32-wasip2/release/adder.wasm");
 
     let x = 55;
     let y = 55;
