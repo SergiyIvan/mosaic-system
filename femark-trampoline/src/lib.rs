@@ -13,12 +13,11 @@ mod bindings {
 
 #[unsafe(no_mangle)]
 pub fn register_imports(
-    state: &mut States,
     linker: &mut Linker<States>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Registering femark imports");
     
-    let mut hosted = linker.instance("docs:femark-trampoline/hosted@0.1.0")?;
+    let mut hosted = linker.instance("docs:femark-app/hosted@0.1.0")?;
     
     hosted.func_wrap(
         "process-markdown-to-html",

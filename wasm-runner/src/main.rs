@@ -5,6 +5,7 @@ mod sync_runner;
 
 pub fn execute_wasm_runner(component_path: PathBuf) -> anyhow::Result<()> {
     sync_runner::run(component_path)?;
+    println!("********After call 3");
     Ok(())
 }
 
@@ -17,5 +18,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let component_path = PathBuf::from(&args[1]);
-    execute_wasm_runner(component_path)
+    execute_wasm_runner(component_path)?;
+    println!("********After call 4");
+    Ok(())
 }

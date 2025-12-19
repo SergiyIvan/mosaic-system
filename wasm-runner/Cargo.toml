@@ -11,3 +11,4 @@ anyhow = "1.0.72"
 wasmtime = "34.0"
 wasmtime-wasi = "34.0"
 wasmtime-state = { path = "../wasmtime-state" }
+libloading = "0.9.0"

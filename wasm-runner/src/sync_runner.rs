@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use libloading::{Library, Symbol};
 
 use anyhow::Context;
 use wasmtime::component::{Component, Linker, Instance};
@@ -18,15 +19,38 @@ pub fn run(component_path: PathBuf) -> anyhow::Result<()> {
     let mut linker: Linker<States> = Linker::new(&engine);
     wasmtime_wasi::p2::add_to_linker_sync(&mut linker).expect("Could not add wasi to linker");
 
-    let instance = linker.instantiate(&mut store, &component)
-        .context("Failed to instantiate the component")?;
+    // TODO: keep instances of libraries in some global state, probably in States: https://copilot.microsoft.com/shares/Y2Ts6KwkZ7KBbwR6m9w71
+    let lib = Box::leak(Box::new(unsafe { Library::new("/home/sergiyivan/work/mosaic/system/femark-trampoline/target/release/libfemark_trampoline.so")? }));
+    unsafe {
+        let register_imports_function: Symbol<
+            fn(
+                linker: &mut Linker<States>,
+            ),
+        > = lib.get(b"register_imports")?;
+        println!("Function pointer address: {:p}", *register_imports_function);
+        register_imports_function(&mut linker);
+        println!("Imports registered successfully");
+    }
 
-    // let run_function: TypedFunc<(), ()> = instance
-    //     .get_typed_func(&mut store, "wasi:cli/run@0.2.7::run")
-    //     .context("`run` function not found")?;
-    // let result = run_function.call(&mut store, ())?;
-    // println!("Component finished with result: {:?}", result);
-    execute_run_function(store, instance)?;
+    // let instance = linker.instantiate(&mut store, &component)
+    //     .context("Failed to instantiate the component")?;
+
+    println!("Instantiating component...");
+    let inst_result = linker.instantiate(&mut store, &component);
+
+    match inst_result {
+        Ok(instance) => {
+            println!("Instance created successfully");
+            println!("********Before call");
+            execute_run_function(store, instance)?;
+            println!("********After call 2");
+        }
+        Err(e) => {
+            println!("Instantiation failed: {e:?}");
+            return Err(e).context("Failed to instantiate the component");
+        }
+    };
+
     Ok(())
 }
 
@@ -48,5 +72,6 @@ fn execute_run_function(
 
     let mut result = [wasmtime::component::Val::U64(0)];
     func.call(&mut store, &[], &mut result)?;
+    println!("********After call");
     Ok(())
 }
