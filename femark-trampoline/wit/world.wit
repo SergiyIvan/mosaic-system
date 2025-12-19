@@ -1,4 +1,4 @@
-package docs:femark-tranpoline@0.1.0;
+package docs:femark-trampoline@0.1.0;
 
 interface hosted {
     process-markdown-to-html: func(input: string) -> result<html-output, highlight-error>;
@@ -25,6 +25,6 @@ interface hosted {
     }
 }
 
-world trampoline {
+world femark-trampoline {
     import hosted;
 }

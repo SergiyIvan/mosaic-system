@@ -9,6 +9,5 @@ crate-type = ["rlib", "cdylib"]
 [dependencies]
 wasmtime = "34.0"
 wasmtime-wasi = "34.0"
-wit-bindgen = "0.48.1"
 femark = { path = "../femark" }
 wasmtime-state = { path = "../wasmtime-state" }
