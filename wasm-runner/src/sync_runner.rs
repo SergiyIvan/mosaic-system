@@ -23,9 +23,7 @@ pub fn run(component_path: PathBuf) -> anyhow::Result<()> {
     let lib = Box::leak(Box::new(unsafe { Library::new("/home/sergiyivan/work/mosaic/system/femark-trampoline/target/release/libfemark_trampoline.so")? }));
     unsafe {
         let register_imports_function: Symbol<
-            fn(
-                linker: &mut Linker<States>,
-            ),
+            unsafe extern "C" fn(linker: &mut Linker<States>),
         > = lib.get(b"register_imports")?;
         println!("Function pointer address: {:p}", *register_imports_function);
         register_imports_function(&mut linker);

@@ -10,9 +10,16 @@ mod bindings {
     });
 }
 
-
 #[unsafe(no_mangle)]
-pub fn register_imports(
+pub extern "C" fn register_imports(
+    linker: &mut Linker<States>,
+) {
+    if let Err(e) = register_imports_impl(linker) {
+        eprintln!("Error registering imports: {e}");
+    }
+}
+
+fn register_imports_impl(
     linker: &mut Linker<States>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Registering femark imports");
