@@ -1,0 +1,9 @@
+package docs:adder-trampoline@0.1.0;
+
+interface hosted {
+    host-function-print: func(x: string);
+}
+
+world adder-trampoline {
+    import hosted;
+}

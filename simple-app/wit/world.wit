@@ -1,0 +1,10 @@
+package docs:adder-app@0.1.0;
+
+interface hosted {
+    host-function-print: func(x: string);
+}
+
+world adder {
+    export wasi:cli/run@0.2.7;
+    import hosted;
+}
