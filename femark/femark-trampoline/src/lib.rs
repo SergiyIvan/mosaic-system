@@ -1,30 +1,27 @@
-use wasmtime::component::Linker;
+use wasmtime::component::LinkerInstance;
 use wasmtime_state::States;
 use bindings::docs::femark_trampoline::hosted::{HtmlOutput, HighlightError, OwnedFrontmatter, OwnedCodeBlock};
 
 mod bindings {
     wasmtime::component::bindgen!({
-        path: "/home/sergiyivan/work/mosaic/system/femark-trampoline/wit/world.wit",
         world: "femark-trampoline",
         async: false
     });
 }
 
 pub fn register_imports(
-    linker: &mut Linker<States>,
+    hosted: &mut LinkerInstance<States>,
 ) {
-    if let Err(e) = register_imports_impl(linker) {
+    if let Err(e) = register_imports_impl(hosted) {
         eprintln!("Error registering imports: {e}");
     }
 }
 
 fn register_imports_impl(
-    linker: &mut Linker<States>,
+    hosted: &mut LinkerInstance<States>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Registering femark imports");
-    
-    let mut hosted = linker.instance("docs:femark-app/hosted@0.1.0")?;
-    
+
     hosted.func_wrap(
         "process-markdown-to-html",
         |_store, (input,): (String,)| { // : wasmtime::StoreContextMut<'_, States>
