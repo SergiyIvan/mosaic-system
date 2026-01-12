@@ -1,12 +1,16 @@
 use std::env;
 use std::path::PathBuf;
+use anyhow::Result;
+use wasm_runner::{execute_wasm_runner, ImportRegistrar};
+use wasmtime::component::Linker;
+use wasmtime_state::States;
 
-mod sync_runner;
-
-pub fn execute_wasm_runner(component_path: PathBuf) -> anyhow::Result<()> {
-    sync_runner::run(component_path)?;
-    println!("********After call 3");
-    Ok(())
+/// Only to be used by simple components not using host functions.
+struct StubRegistrar;
+impl ImportRegistrar<States> for StubRegistrar {
+    fn register_imports(&self, _linker: &mut Linker<States>) -> Result<()> {
+        Ok(())
+    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -18,7 +22,5 @@ fn main() -> anyhow::Result<()> {
     }
 
     let component_path = PathBuf::from(&args[1]);
-    execute_wasm_runner(component_path)?;
-    println!("********After call 4");
-    Ok(())
+    execute_wasm_runner(component_path, StubRegistrar)
 }

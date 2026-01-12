@@ -4,12 +4,14 @@ use anyhow::Context;
 use wasmtime::component::{Component, Linker, Instance};
 use wasmtime::{Engine, Store};
 use wasmtime_wasi;
-use femark_trampoline::register_imports;
-
 use wasmtime_state::States;
+use crate::ImportRegistrar;
 
 
-pub fn run(component_path: PathBuf) -> anyhow::Result<()> {
+pub fn run<R>(component_path: PathBuf, registrar: R) -> anyhow::Result<()>
+where
+    R: ImportRegistrar<States>,
+{
     let engine = Engine::default();
     let component = Component::from_file(&engine, component_path).context("Component file not found")?;
 
@@ -19,7 +21,7 @@ pub fn run(component_path: PathBuf) -> anyhow::Result<()> {
     let mut linker: Linker<States> = Linker::new(&engine);
     wasmtime_wasi::p2::add_to_linker_sync(&mut linker).expect("Could not add wasi to linker");
 
-    register_imports(&mut linker);
+    registrar.register_imports(&mut linker)?;
 
     println!("Instantiating component...");
     let inst_result = linker.instantiate(&mut store, &component);
@@ -27,9 +29,7 @@ pub fn run(component_path: PathBuf) -> anyhow::Result<()> {
     match inst_result {
         Ok(instance) => {
             println!("Instance created successfully");
-            println!("********Before call");
             execute_run_function(store, instance)?;
-            println!("********After call 2");
         }
         Err(e) => {
             println!("Instantiation failed: {e:?}");
@@ -58,6 +58,5 @@ fn execute_run_function(
 
     let mut result = [wasmtime::component::Val::U64(0)];
     func.call(&mut store, &[], &mut result)?;
-    println!("********After call");
     Ok(())
 }
