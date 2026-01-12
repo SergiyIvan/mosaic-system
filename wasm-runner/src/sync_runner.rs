@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use wasmtime::component::{Component, Linker, Instance, LinkerInstance};
+use wasmtime::component::{Component, Linker, Instance};
 use wasmtime::{Engine, Store};
 use wasmtime_wasi;
-use simple_trampoline::register_imports;
+use femark_trampoline::register_imports;
 
 use wasmtime_state::States;
 
@@ -19,9 +19,7 @@ pub fn run(component_path: PathBuf) -> anyhow::Result<()> {
     let mut linker: Linker<States> = Linker::new(&engine);
     wasmtime_wasi::p2::add_to_linker_sync(&mut linker).expect("Could not add wasi to linker");
 
-    let mut hosted: LinkerInstance<States> = linker.instance("docs:adder-app/hosted@0.1.0")?;
-
-    register_imports(&mut hosted);
+    register_imports(&mut linker);
 
     println!("Instantiating component...");
     let inst_result = linker.instantiate(&mut store, &component);
