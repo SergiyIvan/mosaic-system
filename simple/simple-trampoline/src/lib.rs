@@ -3,7 +3,6 @@ use wasmtime_state::States;
 
 mod bindings {
     wasmtime::component::bindgen!({
-        path: "/home/sergiyivan/work/mosaic/system/simple-trampoline/wit/world.wit",
         world: "adder-trampoline",
         async: false
     });

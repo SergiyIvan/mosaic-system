@@ -6,11 +6,11 @@ use wasmtime::component::Linker;
 use wasmtime_state::States;
 
 
-struct FemarkRegistrar;
-impl ImportRegistrar<States> for FemarkRegistrar {
+struct AdderRegistrar;
+impl ImportRegistrar<States> for AdderRegistrar {
     fn register_imports(&self, linker: &mut Linker<States>) -> Result<()> {
-        let mut hosted = linker.instance("docs:femark-app/hosted@0.1.0")?;
-        femark_trampoline::register_imports(&mut hosted);
+        let mut hosted = linker.instance("docs:adder-app/hosted@0.1.0")?;
+        simple_trampoline::register_imports(&mut hosted);
         Ok(())
     }
 }
@@ -24,5 +24,5 @@ fn main() -> anyhow::Result<()> {
     }
 
     let component_path = PathBuf::from(&args[1]);
-    execute_wasm_runner(component_path, FemarkRegistrar)
+    execute_wasm_runner(component_path, AdderRegistrar)
 }
