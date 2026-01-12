@@ -1,5 +1,0 @@
-package docs:hello-world-app@0.1.0;
-
-world hello-world {
-    export wasi:cli/run@0.2.7;
-}

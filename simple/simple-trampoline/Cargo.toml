@@ -9,4 +9,4 @@ crate-type = ["rlib", "cdylib"]
 [dependencies]
 wasmtime = "34.0"
 wasmtime-wasi = "34.0"
-wasmtime-state = { path = "../wasmtime-state" }
+wasmtime-state = { path = "../../wasmtime-state" }

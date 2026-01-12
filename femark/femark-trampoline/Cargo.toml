@@ -10,4 +10,4 @@ crate-type = ["rlib", "cdylib"]
 wasmtime = "34.0"
 wasmtime-wasi = "34.0"
 femark = { path = "../femark" }
-wasmtime-state = { path = "../wasmtime-state" }
+wasmtime-state = { path = "../../wasmtime-state" }
