@@ -1,10 +1,10 @@
 use std::path::PathBuf;
-use libloading::{Library, Symbol};
 
 use anyhow::Context;
 use wasmtime::component::{Component, Linker, Instance, LinkerInstance};
 use wasmtime::{Engine, Store};
 use wasmtime_wasi;
+use simple_trampoline::register_imports;
 
 use wasmtime_state::States;
 
@@ -20,16 +20,8 @@ pub fn run(component_path: PathBuf) -> anyhow::Result<()> {
     wasmtime_wasi::p2::add_to_linker_sync(&mut linker).expect("Could not add wasi to linker");
 
     let mut hosted: LinkerInstance<States> = linker.instance("docs:adder-app/hosted@0.1.0")?;
-    // TODO: keep instances of libraries in some global state, probably in States: https://copilot.microsoft.com/shares/Y2Ts6KwkZ7KBbwR6m9w71
-    let lib = Box::leak(Box::new(unsafe { Library::new("/home/sergiyivan/work/mosaic/system/simple-trampoline/target/release/libsimple_trampoline.so")? }));
-    unsafe {
-        let register_imports_function: Symbol<
-            unsafe extern "C" fn(linker_instance: &mut LinkerInstance<States>),
-        > = lib.get(b"register_imports")?;
-        println!("Function pointer address: {:p}", *register_imports_function);
-        register_imports_function(&mut hosted);
-        println!("Imports registered successfully");
-    }
+
+    register_imports(&mut hosted);
 
     println!("Instantiating component...");
     let inst_result = linker.instantiate(&mut store, &component);

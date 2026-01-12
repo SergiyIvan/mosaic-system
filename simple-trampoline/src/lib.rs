@@ -9,8 +9,7 @@ mod bindings {
     });
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn register_imports(
+pub fn register_imports(
     hosted: &mut LinkerInstance<States>,
 ) {
     if let Err(e) = register_imports_impl(hosted) {
