@@ -1,0 +1,13 @@
+[package]
+name = "openssl-trampoline"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+wasmtime = "34.0"
+wasmtime-wasi = "34.0"
+openssl = "0.10"
+wasmtime-state = { path = "../../wasmtime-state" }

@@ -1,0 +1,36 @@
+package docs:openssl-app@0.1.0;
+
+interface hosted {
+    enum cipher-algorithm {
+        aes256-gcm
+    }
+
+    rand-bytes: func(len: u64) -> list<u8>;
+
+    encrypt-aead: func(
+        alg: cipher-algorithm,
+        key: list<u8>,
+        iv: option<list<u8>>,
+        aad: list<u8>,
+        plaintext: list<u8>
+    ) -> result<encrypt-result, string>;
+
+    record encrypt-result {
+        ciphertext: list<u8>,
+        tag: list<u8>
+    }
+
+    decrypt-aead: func(
+        alg: cipher-algorithm,
+        key: list<u8>,
+        iv: option<list<u8>>,
+        aad: list<u8>,
+        ciphertext: list<u8>,
+        tag: list<u8>
+    ) -> result<list<u8>, string>;
+}
+
+world app {
+    export wasi:cli/run@0.2.7;
+    import hosted;
+}
