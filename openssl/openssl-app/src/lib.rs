@@ -16,7 +16,7 @@ impl bindings::exports::wasi::cli::run::Guest for ApplicationComponent {
 
 fn run_impl() -> Result<(), String> {
     // Generate plain text message to be encrypted.
-    let plaintext = b"Hello, Rust and OpenSSL (via Host)!";
+    let plaintext = rand_bytes(1024);
 
     // Generate Key (32 bytes for AES-256).
     let key = rand_bytes(32);
@@ -33,14 +33,17 @@ fn run_impl() -> Result<(), String> {
         &key,
         Some(&nonce),
         aad,
-        plaintext,
+        &plaintext,
     ).map_err(|e| format!("Encryption failed: {}", e))?;
 
-    println!("Plaintext:  {:?}", String::from_utf8_lossy(plaintext));
-    println!("Key:        {}", hex::encode(&key));
-    println!("Nonce:      {}", hex::encode(&nonce));
-    println!("Ciphertext: {}", hex::encode(&result.ciphertext));
-    println!("Auth Tag:   {}", hex::encode(&result.tag));
+    println!("Plaintext size: {} bytes", plaintext.len());
+    println!("Key:            {}", hex::encode(&key));
+    println!("Nonce:          {}", hex::encode(&nonce));
+    println!("Ciphertext:     {}... ({} bytes total)",
+        hex::encode(&result.ciphertext[..32]),
+        result.ciphertext.len()
+    );
+    println!("Auth Tag:       {}", hex::encode(&result.tag));
 
     // Decrypt to verify.
     let decrypted = decrypt_aead(
@@ -52,7 +55,12 @@ fn run_impl() -> Result<(), String> {
         &result.tag
     ).map_err(|e| format!("Decryption failed: {}", e))?;
 
-    println!("Decrypted:  {:?}", String::from_utf8_lossy(&decrypted));
+    // Verify the result matches.
+    if decrypted == plaintext {
+        println!("Success! Decrypted data matches original random plaintext.");
+    } else {
+        return Err("Decrypted data did not match plaintext!".to_string());
+    }
 
     Ok(())
 }
