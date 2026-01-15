@@ -4,63 +4,81 @@ mod bindings {
     export!(ApplicationComponent);
 }
 
-use bindings::docs::openssl_app::hosted::*;
+use bindings::docs::openssl_app::hosted::{
+    encrypt_aead, rand_bytes, CipherAlgorithm,
+};
+use std::time::{Duration, Instant};
 
 struct ApplicationComponent;
 
 impl bindings::exports::wasi::cli::run::Guest for ApplicationComponent {
     fn run() -> Result<(), ()> {
-        run_impl().map_err(|e| eprintln!("App Error: {}", e))
+        let _ = run_benchmark().map_err(|e| eprintln!("Benchmark Error: {}", e));
+        run_benchmark().map_err(|e| eprintln!("Benchmark Error: {}", e))
     }
 }
 
-fn run_impl() -> Result<(), String> {
-    // Generate plain text message to be encrypted.
-    let plaintext = rand_bytes(1024);
+fn run_benchmark() -> Result<(), String> {
+    // Benchmark configuration.
+    let sizes = [16, 64, 256, 1024, 8192, 16384];
+    let seconds = 3;
+    let aad = b"bench_aad";
 
-    // Generate Key (32 bytes for AES-256).
-    let key = rand_bytes(32);
+    println!("Blocksize\tTotal ops\tThroughput (kB/s)\tSeconds");
 
-    // Generate Nonce/IV (12 bytes for GCM).
-    let nonce = rand_bytes(12);
-    
-    // Additional Data.
-    let aad = b"additional data";
+    for &size in &sizes {
+        let payload = rand_bytes(size as u64);
+        let key = rand_bytes(32); // AES-256 key is 32 bytes.
 
-    // Encrypt.
-    let result = encrypt_aead(
-        CipherAlgorithm::Aes256Gcm,
-        &key,
-        Some(&nonce),
-        aad,
-        &plaintext,
-    ).map_err(|e| format!("Encryption failed: {}", e))?;
+        // To be incremented manually in the loop to avoid the overhead of calling host 'rand_bytes'.
+        let mut nonce = vec![0u8; 12];
 
-    println!("Plaintext size: {} bytes", plaintext.len());
-    println!("Key:            {}", hex::encode(&key));
-    println!("Nonce:          {}", hex::encode(&nonce));
-    println!("Ciphertext:     {}... ({} bytes total)",
-        hex::encode(&result.ciphertext[..32]),
-        result.ciphertext.len()
-    );
-    println!("Auth Tag:       {}", hex::encode(&result.tag));
+        // Preparing timer.
+        let start = Instant::now();
+        let limit = Duration::from_secs(seconds);
+        let mut ops: usize = 0;
 
-    // Decrypt to verify.
-    let decrypted = decrypt_aead(
-        CipherAlgorithm::Aes256Gcm,
-        &key,
-        Some(&nonce),
-        aad,
-        &result.ciphertext,
-        &result.tag
-    ).map_err(|e| format!("Decryption failed: {}", e))?;
+        // Benchmark Loop.
+        loop {
+            let now = Instant::now();
+            let elapsed = now.duration_since(start);
+            if elapsed >= limit {
+                break;
+            }
 
-    // Verify the result matches.
-    if decrypted == plaintext {
-        println!("Success! Decrypted data matches original random plaintext.");
-    } else {
-        return Err("Decrypted data did not match plaintext!".to_string());
+            // Increment nonce manually.
+            increment_nonce(&mut nonce);
+
+            // Encrypt.
+            let _ = encrypt_aead(
+                CipherAlgorithm::Aes256Gcm,
+                &key,
+                Some(&nonce),
+                aad,
+                &payload
+            ).map_err(|e| e.to_string())?;
+
+            ops += 1;
+        }
+
+        let total_elapsed = start.elapsed().as_secs_f64();
+        let throughput_bytes = (ops as f64) * (size as f64);
+        let throughput_kbs = throughput_bytes / total_elapsed / 1000.0;
+
+        println!(
+            "{}\t\t{}\t\t{:.2}\t\t{:.2}",
+            size, ops, throughput_kbs, total_elapsed
+        );
     }
 
     Ok(())
+}
+
+fn increment_nonce(nonce: &mut [u8]) {
+    for byte in nonce.iter_mut().rev() {
+        *byte = byte.wrapping_add(1);
+        if *byte != 0 {
+            break;
+        }
+    }
 }
