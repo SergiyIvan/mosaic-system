@@ -13,8 +13,18 @@ struct ApplicationComponent;
 
 impl bindings::exports::wasi::cli::run::Guest for ApplicationComponent {
     fn run() -> Result<(), ()> {
-        let _ = run_benchmark().map_err(|e| eprintln!("Benchmark Error: {}", e));
-        run_benchmark().map_err(|e| eprintln!("Benchmark Error: {}", e))
+        println!("=== Starting Warmup ===");
+        run_benchmark().map_err(|e| eprintln!("Benchmark Warmup Error: {}", e))?;
+        println!("=== Warmup Complete ===\n");
+
+        let iterations = 5;
+        for i in 1..=iterations {
+            println!("=== Iteration {}/{} ===", i, iterations);
+            run_benchmark().map_err(|e| eprintln!("Benchmark Error: {}", e))?;
+            println!();
+        }
+
+        Ok(())
     }
 }
 
@@ -24,7 +34,8 @@ fn run_benchmark() -> Result<(), String> {
     let seconds = 3;
     let aad = b"bench_aad";
 
-    println!("Blocksize\tTotal ops\tThroughput (kB/s)\tSeconds");
+    println!("{:<10} {:<10} {:<12} {:<20}", "BlockSize", "Ops", "Time(s)", "Throughput(MB/s)");
+    println!("{:-<60}", "");
 
     for &size in &sizes {
         let payload = rand_bytes(size as u64);
@@ -63,11 +74,11 @@ fn run_benchmark() -> Result<(), String> {
 
         let total_elapsed = start.elapsed().as_secs_f64();
         let throughput_bytes = (ops as f64) * (size as f64);
-        let throughput_kbs = throughput_bytes / total_elapsed / 1000.0;
+        let throughput_mb = throughput_bytes / total_elapsed / 1_000_000.0;
 
         println!(
-            "{}\t\t{}\t\t{:.2}\t\t{:.2}",
-            size, ops, throughput_kbs, total_elapsed
+            "{:<10} {:<10} {:<12.2} {:<20.2}",
+            size, ops, total_elapsed, throughput_mb
         );
     }
 
