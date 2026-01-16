@@ -1,0 +1,11 @@
+package docs:ffmpeg-app@0.1.0;
+
+interface hosted {
+    system: func(cmd: string) -> result<u32, string>;
+    get-file-size: func(path: string) -> result<u64, string>;
+}
+
+world app {
+    export wasi:cli/run@0.2.7;
+    import hosted;
+}

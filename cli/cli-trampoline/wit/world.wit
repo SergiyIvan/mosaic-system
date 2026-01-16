@@ -1,0 +1,14 @@
+package docs:cli-trampoline@0.1.0;
+
+interface hosted {
+    // Similar to C's system(const char *command).
+    // Executes the command string in the host's default shell.
+    system: func(cmd: string) -> result<u32, string>;
+
+    // Mimics stat() to get file size in bytes from the host filesystem.
+    get-file-size: func(path: string) -> result<u64, string>;
+}
+
+world cli-trampoline {
+    import hosted;
+}
