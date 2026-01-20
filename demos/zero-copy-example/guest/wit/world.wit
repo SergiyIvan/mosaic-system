@@ -1,0 +1,14 @@
+package docs:guest@0.1.0;
+
+interface runner {
+    run: func() -> u32;
+}
+
+interface hosted {
+    host-function: func(arr: list<u8>);
+}
+
+world guest {
+    import hosted;
+    export runner;
+}
