@@ -65,20 +65,26 @@ def parse_log_stats(filename):
 
 # --- Main Execution ---
 wasm_means, wasm_stds = parse_log_stats("openssl-wasm.log")
+wasm_mod_no_copy_means, wasm_mod_no_copy_stds = parse_log_stats("openssl-wasm-modules-no-copy.log")
+wasm_mod_means, wasm_mod_stds = parse_log_stats("openssl-wasm-modules.log")
 native_means, native_stds = parse_log_stats("openssl-native.log")
 
 print(f"Wasm:   Mean={wasm_means}, Std={wasm_stds}")
+print(f"Wasm Modules No Copy:   Mean={wasm_mod_no_copy_means}, Std={wasm_mod_no_copy_stds}")
+print(f"Wasm Modules:   Mean={wasm_mod_means}, Std={wasm_mod_stds}")
 print(f"Native: Mean={native_means}, Std={native_stds}")
 
 # --- Plotting ---
 x = np.arange(len(x_labels))
-width = 0.35
+width = 0.15
 
 matplotlib.rcParams.update({'font.size': 16})
 fig, ax1 = plt.subplots(1, 1)
 
-ax1.bar(x - width/2, native_means, width=width, yerr=native_stds, hatch='//', label='Native', alpha=0.75, error_kw=dict(lw=1.5, capthick=1.5), capsize=5)
-ax1.bar(x + width/2, wasm_means,   width=width, yerr=wasm_stds,   hatch='..', label='Wasm',   alpha=0.75, error_kw=dict(lw=1.5, capthick=1.5), capsize=5)
+ax1.bar(x - 1.5*width, native_means, width=width, yerr=native_stds, hatch='//', label='Native', alpha=0.75, error_kw=dict(lw=1.5, capthick=1.5), capsize=5)
+ax1.bar(x - 0.5*width, wasm_mod_no_copy_means, width=width, yerr=wasm_mod_no_copy_stds, hatch='*', label='Wasm Modules (No Copy)', alpha=0.75, error_kw=dict(lw=1.5, capthick=1.5), capsize=5)
+ax1.bar(x + 0.5*width, wasm_mod_means, width=width, yerr=wasm_mod_stds, hatch='o', label='Wasm Modules', alpha=0.75, error_kw=dict(lw=1.5, capthick=1.5), capsize=5)
+ax1.bar(x + 1.5*width, wasm_means,   width=width, yerr=wasm_stds,   hatch='..', label='Wasm Components',   alpha=0.75, error_kw=dict(lw=1.5, capthick=1.5), capsize=5)
 
 # Styling
 ax1.set_ylabel('Throughput (ops/sec)')
