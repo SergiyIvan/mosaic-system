@@ -1,14 +1,9 @@
 use std::time::{Duration, Instant};
 
-// --- IMPORT HOST FUNCTIONS ---
-// We link to the "env" module which is standard for custom host functions
 #[link(wasm_import_module = "env")]
 unsafe extern "C" {
-    // Fills the buffer at ptr with random bytes
     fn host_rand_bytes(ptr: *mut u8, len: u32);
 
-    // Encrypts data reading directly from guest memory pointers
-    // Returns 0 on success, 1 on error
     fn host_encrypt(
         key_ptr: *const u8,
         iv_ptr: *const u8,
@@ -16,8 +11,8 @@ unsafe extern "C" {
         aad_len: u32,
         pt_ptr: *const u8,
         pt_len: u32,
-        tag_ptr: *mut u8, // Host writes tag here (16 bytes)
-        ct_ptr: *mut u8,  // Host writes ciphertext here (same len as pt)
+        tag_ptr: *mut u8,
+        ct_ptr: *mut u8,
     ) -> u32;
 }
 
