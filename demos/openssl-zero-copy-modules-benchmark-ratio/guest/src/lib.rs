@@ -16,7 +16,8 @@ unsafe extern "C" {
     ) -> u32;
 
     fn host_reset_time();
-    fn host_get_time_nanos() -> u64;
+    fn host_get_trampoline_time_nanos() -> u64;
+    fn host_get_openssl_time_nanos() -> u64;
 }
 
 const TARGET_OPS: usize = 1_000_000;
@@ -40,10 +41,10 @@ fn run_benchmark(target_ops: usize) {
     let sizes = [16, 64, 256, 1024, 8192, 16384];
 
     println!(
-        "{:<10} {:<10} {:<12} {:<12} {:<12}",
-        "BlockSize", "Ops", "Total(ms)", "Host(ms)", "Wasm(ms)"
+        "{:<10} {:<10} {:<12} {:<12} {:<12} {:<12}",
+        "BlockSize", "Ops", "Total(ms)", "Host-T(ms)", "Host-O(ms)", "Wasm(ms)"
     );
-    println!("{:-<60}", "");
+    println!("{:-<85}", "");
 
     for &size in &sizes {
         let mut key = vec![0u8; 32];
@@ -84,13 +85,20 @@ fn run_benchmark(target_ops: usize) {
         }
 
         let total_elapsed = start.elapsed().as_nanos() as f64 / 1_000_000.0;
-        let host_nanos = unsafe { host_get_time_nanos() };
-        let host_elapsed = host_nanos as f64 / 1_000_000.0;
-        let wasm_elapsed = total_elapsed - host_elapsed;
+
+        let host_trampoline_nanos = unsafe { host_get_trampoline_time_nanos() };
+        let host_openssl_nanos = unsafe { host_get_openssl_time_nanos() };
+        let host_total_nanos = host_trampoline_nanos + host_openssl_nanos;
+
+        let host_trampoline_elapsed = host_trampoline_nanos as f64 / 1_000_000.0;
+        let host_openssl_elapsed = host_openssl_nanos as f64 / 1_000_000.0;
+        let host_total_elapsed = host_total_nanos as f64 / 1_000_000.0;
+
+        let wasm_elapsed = total_elapsed - host_total_elapsed;
 
         println!(
-            "{:<10} {:<10} {:<12.4} {:<12.4} {:<12.4}",
-            size, target_ops, total_elapsed, host_elapsed, wasm_elapsed
+            "{:<10} {:<10} {:<12.4} {:<12.4} {:<12.4} {:<12.4}",
+            size, target_ops, total_elapsed, host_trampoline_elapsed, host_openssl_elapsed, wasm_elapsed
         );
     }
 }

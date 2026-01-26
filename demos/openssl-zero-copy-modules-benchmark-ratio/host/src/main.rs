@@ -9,7 +9,8 @@ use std::time::{Duration, Instant};
 
 struct ModuleState {
     wasi: WasiP1Ctx,
-    total_host_time: Duration
+    trampoline_host_time: Duration,
+    openssl_host_time: Duration
 }
 
 fn main() -> Result<()> {
@@ -21,12 +22,18 @@ fn main() -> Result<()> {
 
     // --- host_reset_time ---
     linker.func_wrap("env", "host_reset_time", |mut caller: Caller<'_, ModuleState>| {
-        caller.data_mut().total_host_time = Duration::ZERO;
+        caller.data_mut().trampoline_host_time = Duration::ZERO;
+        caller.data_mut().openssl_host_time = Duration::ZERO;
     })?;
 
-    // --- host_get_time_nanos ---
-    linker.func_wrap("env", "host_get_time_nanos", |caller: Caller<'_, ModuleState>| -> u64 {
-        caller.data().total_host_time.as_nanos() as u64
+    // --- host_get_trampoline_time_nanos ---
+    linker.func_wrap("env", "host_get_trampoline_time_nanos", |caller: Caller<'_, ModuleState>| -> u64 {
+        caller.data().trampoline_host_time.as_nanos() as u64
+    })?;
+
+    // --- host_get_openssl_time_nanos ---
+    linker.func_wrap("env", "host_get_openssl_time_nanos", |caller: Caller<'_, ModuleState>| -> u64 {
+        caller.data().openssl_host_time.as_nanos() as u64
     })?;
 
     // --- host_rand_bytes ---
@@ -52,8 +59,8 @@ fn main() -> Result<()> {
             aad_ptr: i32, aad_len: i32,
             pt_ptr: i32, pt_len: i32,
             tag_ptr: i32, ct_ptr: i32| -> u32 {
-        // Starting host timer.
-        let start_time = Instant::now();
+        // Starting trampoline time span.
+        let trampoline_time = Instant::now();
 
         let mem = match caller.get_export("memory") {
             Some(Extern::Memory(mem)) => mem,
@@ -74,6 +81,10 @@ fn main() -> Result<()> {
 
         let mut temp_tag = [0u8; 16];
         let cipher = Cipher::aes_256_gcm();
+
+        // Finishing trampoline time span and starting OpenSSL time span.
+        let trampoline_elapsed = trampoline_time.elapsed();
+        let openssl_time = Instant::now();
 
         let res = encrypt_aead(
             cipher,
@@ -110,9 +121,10 @@ fn main() -> Result<()> {
             Err(_) => 1 // Error.
         };
 
-        // Stop timer and accumulate.
-        let elapsed = start_time.elapsed();
-        caller.data_mut().total_host_time += elapsed;
+        // Stop OpenSSL timer and accumulate.
+        let openssl_elapsed = openssl_time.elapsed();
+        caller.data_mut().trampoline_host_time += trampoline_elapsed;
+        caller.data_mut().openssl_host_time += openssl_elapsed;
 
         result_code
     })?;
@@ -122,7 +134,7 @@ fn main() -> Result<()> {
         .inherit_stderr()
         .build_p1();
 
-    let mut store = Store::new(&engine, ModuleState { wasi, total_host_time: Duration::ZERO });
+    let mut store = Store::new(&engine, ModuleState { wasi, trampoline_host_time: Duration::ZERO, openssl_host_time: Duration::ZERO });
     let instance = linker.instantiate(&mut store, &module)?;
 
     let run = instance.get_typed_func::<(), u32>(&mut store, "run")?;

@@ -26,10 +26,10 @@ fn run_benchmark(target_ops: usize) -> Result<(), String> {
     let cipher = Cipher::aes_256_gcm();
 
     println!(
-        "{:<10} {:<10} {:<12} {:<12} {:<12}", 
-        "BlockSize", "Ops", "Total(ms)", "Host(ms)", "Wasm(ms)"
+        "{:<10} {:<10} {:<12} {:<12} {:<12} {:<12}",
+        "BlockSize", "Ops", "Total(ms)", "Host-T(ms)", "Host-O(ms)", "Wasm(ms)"
     );
-    println!("{:-<60}", "");
+    println!("{:-<85}", "");
 
     for &size in &sizes {
         let mut payload = vec![0u8; size];
@@ -57,8 +57,8 @@ fn run_benchmark(target_ops: usize) -> Result<(), String> {
         let total_elapsed = start.elapsed().as_nanos() as f64 / 1_000_000.0;
 
         println!(
-            "{:<10} {:<10} {:<12.4} {:<12.4} {:<12.4}",
-            size, target_ops, total_elapsed, 0, 0
+            "{:<10} {:<10} {:<12.4} {:<12.4} {:<12.4} {:<12.4}",
+            size, target_ops, total_elapsed, 0, 0, 0
         );
     }
 
