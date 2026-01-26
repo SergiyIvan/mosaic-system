@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::{Instant};
 
 #[link(wasm_import_module = "env")]
 unsafe extern "C" {
@@ -19,31 +19,31 @@ unsafe extern "C" {
     fn host_get_time_nanos() -> u64;
 }
 
-const BENCHMARK_SECONDS: u64 = 3;
+const TARGET_OPS: usize = 1_000_000;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn run() -> u32 {
     println!("=== Starting Warmup (Core Wasm) ===");
-    run_benchmark("Warmup");
+    run_benchmark(100_000);
     println!("=== Warmup Complete ===\n");
 
     let iterations = 5;
     for i in 1..=iterations {
         println!("=== Iteration {}/{} ===", i, iterations);
-        run_benchmark(&format!("Iter {}", i));
+        run_benchmark(TARGET_OPS);
         println!();
     }
     0
 }
 
-fn run_benchmark(_label: &str) {
+fn run_benchmark(target_ops: usize) {
     let sizes = [16, 64, 256, 1024, 8192, 16384];
 
     println!(
-        "{:<10} {:<10} {:<12} {:<12} {:<12} {:<20}",
-        "BlockSize", "Ops", "Total(s)", "Host(s)", "Wasm(s)", "Throughput(MB/s)"
+        "{:<10} {:<10} {:<12} {:<12} {:<12}",
+        "BlockSize", "Ops", "Total(ms)", "Host(ms)", "Wasm(ms)"
     );
-    println!("{:-<85}", "");
+    println!("{:-<60}", "");
 
     for &size in &sizes {
         let mut key = vec![0u8; 32];
@@ -61,15 +61,8 @@ fn run_benchmark(_label: &str) {
         }
 
         let start = Instant::now();
-        let limit = Duration::from_secs(BENCHMARK_SECONDS);
-        let mut ops: usize = 0;
 
-        loop {
-            let now = Instant::now();
-            if now.duration_since(start) >= limit {
-                break;
-            }
-
+        for _ in 0..target_ops {
             increment_nonce(&mut nonce);
             let res = unsafe {
                 host_encrypt(
@@ -88,22 +81,16 @@ fn run_benchmark(_label: &str) {
                 eprintln!("Host encryption failed!");
                 break;
             }
-
-            ops += 1;
         }
 
-        let total_elapsed = start.elapsed().as_secs_f64();
-
+        let total_elapsed = start.elapsed().as_nanos() as f64 / 1_000_000.0;
         let host_nanos = unsafe { host_get_time_nanos() };
-        let host_elapsed = host_nanos as f64 / 1_000_000_000.0;
+        let host_elapsed = host_nanos as f64 / 1_000_000.0;
         let wasm_elapsed = total_elapsed - host_elapsed;
 
-        let throughput_bytes = (ops as f64) * (size as f64);
-        let throughput_mb = throughput_bytes / total_elapsed / 1_000_000.0;
-
         println!(
-            "{:<10} {:<10} {:<12.4} {:<12.4} {:<12.4} {:<20.2}",
-            size, ops, total_elapsed, host_elapsed, wasm_elapsed, throughput_mb
+            "{:<10} {:<10} {:<12.4} {:<12.4} {:<12.4}",
+            size, target_ops, total_elapsed, host_elapsed, wasm_elapsed
         );
     }
 }
