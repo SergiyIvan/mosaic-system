@@ -1,0 +1,13 @@
+[package]
+name = "example-host"
+version = "0.1.0"
+edition = "2021"
+description = """
+Example Rust-based WebAssembly host that executes WebAssembly components
+"""
+
+[dependencies]
+anyhow = "1.0"
+wasmtime = "34.0"
+wasmtime-wasi = "34.0"
+hex = "0.4"
