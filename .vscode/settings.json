@@ -31,5 +31,8 @@
         "demos/openssl-zero-copy-modules-benchmark/host/Cargo.toml",
         "demos/zero-copy-modules-example/guest/Cargo.toml",
         "demos/zero-copy-modules-example/host/Cargo.toml"
-    ]
+    ],
+    "rust-analyzer.checkOnSave": false,
+    "rust-analyzer.check.command": "cargo check",
+    "rust-analyzer.check.allTargets": false
 }
