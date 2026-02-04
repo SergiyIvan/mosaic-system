@@ -60,7 +60,7 @@ fn main() -> Result<()> {
             pt_ptr: i32, pt_len: i32,
             tag_ptr: i32, ct_ptr: i32| -> u32 {
         // Starting trampoline time span.
-        let trampoline_time = Instant::now();
+        let mut trampoline_time = Instant::now();
 
         let mem = match caller.get_export("memory") {
             Some(Extern::Memory(mem)) => mem,
@@ -83,7 +83,7 @@ fn main() -> Result<()> {
         let cipher = Cipher::aes_256_gcm();
 
         // Finishing trampoline time span and starting OpenSSL time span.
-        let trampoline_elapsed = trampoline_time.elapsed();
+        let total_trampoline_elapsed = trampoline_time.elapsed();
         let openssl_time = Instant::now();
 
         let res = encrypt_aead(
@@ -95,35 +95,37 @@ fn main() -> Result<()> {
             &mut temp_tag 
         );
 
+        let openssl_elapsed = openssl_time.elapsed();
+        trampoline_time = Instant::now();
+
         let result_code = match res {
             Ok(ciphertext_vec) => {
                 // Now we are done reading, we can get mutable access to write back.
-                // let ct_len = ciphertext_vec.len();
-                // let ct_start = ct_ptr as usize;
-                // let ct_end = ct_start + ct_len;
+                let ct_len = ciphertext_vec.len();
+                let ct_start = ct_ptr as usize;
+                let ct_end = ct_start + ct_len;
 
-                // if ct_end <= mem_slice.len() {
-                //     mem_slice[ct_start..ct_end].copy_from_slice(&ciphertext_vec);
-                // } else {
-                //     return 1;
-                // }
+                if ct_end <= mem_slice.len() {
+                    mem_slice[ct_start..ct_end].copy_from_slice(&ciphertext_vec);
+                } else {
+                    return 1;
+                }
 
-                // let tag_start = tag_ptr as usize;
-                // let tag_end = tag_start + 16;
-                // if tag_end <= mem_slice.len() {
-                //     mem_slice[tag_start..tag_end].copy_from_slice(&temp_tag);
-                // } else {
-                //     return 1;
-                // }
+                let tag_start = tag_ptr as usize;
+                let tag_end = tag_start + 16;
+                if tag_end <= mem_slice.len() {
+                    mem_slice[tag_start..tag_end].copy_from_slice(&temp_tag);
+                } else {
+                    return 1;
+                }
 
                 0 // Success.
             },
             Err(_) => 1 // Error.
         };
 
-        // Stop OpenSSL timer and accumulate.
-        let openssl_elapsed = openssl_time.elapsed();
-        caller.data_mut().trampoline_host_time += trampoline_elapsed;
+        // Accumulate timers.
+        caller.data_mut().trampoline_host_time += total_trampoline_elapsed + trampoline_time.elapsed();
         caller.data_mut().openssl_host_time += openssl_elapsed;
 
         result_code
