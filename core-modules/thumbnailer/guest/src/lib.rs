@@ -70,9 +70,9 @@ pub extern "C" fn run() -> u32 {
     println!("Success! Image processed.");
     println!("{{");
     println!("  \"measurement\": {{");
-    println!("    \"download_time_us\": {:.2},", download_time);
+    println!("    \"download_time_us\": {:.2},", download_time);  // Includes only the download part - calculated on guest.
     println!("    \"download_size\": {},", download_size);
-    println!("    \"process_time_us\": {:.2},", process_time);
+    println!("    \"process_time_us\": {:.2},", process_time);  // Includes guest and host code - without download.
     println!("    \"upload_size\": {},", resized_size);
     println!("    \"breakdown\": {{");
     println!("      \"host_compute_us\": {:.2},", host_compute_us);

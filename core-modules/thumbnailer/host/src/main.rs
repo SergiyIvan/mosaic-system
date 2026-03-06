@@ -123,7 +123,6 @@ fn main() -> Result<()> {
         out_slice.copy_from_slice(&jpeg_bytes);
 
         let tramp_duration2 = tramp_start2.elapsed();
-
         caller.data_mut().trampoline_time += tramp_duration1 + tramp_duration2;
         caller.data_mut().compute_time += compute_duration;
 
@@ -141,4 +140,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-// TODO: remove all trailing whitespaces and commit.
