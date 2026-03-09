@@ -77,7 +77,6 @@ pub extern "C" fn run() -> u32 {
         return 1;
     }
 
-    // 4. Retrieve Host Breakdown
     let process_time = compute_duration + compute_duration2;
     let host_trampoline_us = unsafe { host_get_trampoline_time_nanos() } as f64 / 1000.0;
     let host_compute_us = unsafe { host_get_compute_time_nanos() } as f64 / 1000.0;
