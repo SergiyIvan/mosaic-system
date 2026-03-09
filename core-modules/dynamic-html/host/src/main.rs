@@ -13,6 +13,38 @@ struct ModuleState {
     compute_time: Duration,
 }
 
+// A wrapper to allow MiniJinja to write bytes directly into a raw Wasm byte buffer.
+struct WasmBufferWriter<'a> {
+    buffer: &'a mut [u8],
+    pos: usize,
+}
+
+impl<'a> std::io::Write for WasmBufferWriter<'a> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let len = buf.len();
+
+        // Guard against Wasm buffer overflow.
+        if self.pos + len > self.buffer.len() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::WriteZero,
+                "Wasm buffer overflow",
+            ));
+        }
+
+        // Copy the byte chunk directly into the Wasm memory slice.
+        self.buffer[self.pos..self.pos + len].copy_from_slice(buf);
+        self.pos += len;
+
+        Ok(len) // Return the number of bytes written.
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        // We don't have an intermediate buffer to flush, so this is a no-op.
+        Ok(())
+    }
+}
+
+
 fn main() -> Result<()> {
     let engine = Engine::default();
     let mut linker: Linker<ModuleState> = Linker::new(&engine);
@@ -90,12 +122,9 @@ fn main() -> Result<()> {
         let tramp_start = Instant::now();
 
         let mem = match caller.get_export("memory") { Some(Extern::Memory(m)) => m, _ => return 0 };
-        // Getting raw pointers to extract multiple non-overlapping slices.
         let base_ptr = mem.data_mut(&mut caller).as_mut_ptr();
-
         let mem_len = mem.data(&caller).len();
 
-        // Bounds checks.
         let bounds_ok = (template_ptr as usize + template_len as usize <= mem_len) &&
                         (username_ptr as usize + username_len as usize <= mem_len) &&
                         (rand_ptr as usize + (rand_len as usize * 4) <= mem_len) &&
@@ -103,58 +132,46 @@ fn main() -> Result<()> {
 
         if !bounds_ok { return 0; }
 
-        let tramp_duration1 = tramp_start.elapsed();
-        let compute_start = Instant::now();
-
-        let html_output = unsafe {
+        let bytes_written = unsafe {
             let template_slice = std::slice::from_raw_parts(base_ptr.add(template_ptr as usize), template_len as usize);
             let template_str = std::str::from_utf8(template_slice).unwrap_or("");
 
             let username_slice = std::slice::from_raw_parts(base_ptr.add(username_ptr as usize), username_len as usize);
             let username_str = std::str::from_utf8(username_slice).unwrap_or("");
 
-            // The random array is a slice of u32s.
             let rand_ptr_actual = base_ptr.add(rand_ptr as usize) as *const u32;
             let random_numbers = std::slice::from_raw_parts(rand_ptr_actual, rand_len as usize);
 
-            // MiniJinja setup and execution.
+            // Create a mutable slice for the Wasm output buffer.
+            let out_slice = std::slice::from_raw_parts_mut(base_ptr.add(out_ptr as usize), max_len as usize);
+            let mut writer = WasmBufferWriter { buffer: out_slice, pos: 0 };
+
+            let tramp_duration = tramp_start.elapsed();
+            let compute_start = Instant::now();
+
             let mut env = Environment::new();
             if env.add_template("tpl", template_str).is_err() { return 0; }
             let tmpl = env.get_template("tpl").unwrap();
 
             let cur_time = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-            // Render builds the final string.
-            match tmpl.render(context! {
+            let res = tmpl.render_to_write(context! {
                 username => username_str,
                 cur_time => cur_time,
                 random_numbers => random_numbers,
-            }) {
-                Ok(html) => html,
-                Err(_) => return 0,
+            }, &mut writer);
+
+            let compute_duration = compute_start.elapsed();
+            caller.data_mut().trampoline_time += tramp_duration;
+            caller.data_mut().compute_time += compute_duration;
+
+            match res {
+                Ok(_) => writer.pos as u32, // Return exact bytes written.
+                Err(_) => 0,
             }
         };
 
-        let compute_duration = compute_start.elapsed();
-        let tramp_start2 = Instant::now();
-
-        // Copy back to Wasm Memory.
-        let html_bytes = html_output.as_bytes();
-        if html_bytes.len() > max_len as usize {
-            return 0; // Buffer too small.
-        }
-
-        unsafe {
-            let out_slice = std::slice::from_raw_parts_mut(base_ptr.add(out_ptr as usize), html_bytes.len());
-            out_slice.copy_from_slice(html_bytes);
-        }
-
-        let tramp_duration2 = tramp_start2.elapsed();
-
-        caller.data_mut().trampoline_time += tramp_duration1 + tramp_duration2;
-        caller.data_mut().compute_time += compute_duration;
-
-        html_bytes.len() as u32
+        bytes_written
     })?;
 
     let wasi = WasiCtxBuilder::new().inherit_stdout().inherit_stderr().build_p1();
