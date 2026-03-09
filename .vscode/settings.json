@@ -27,6 +27,8 @@
         "core-modules/video-processing/host/Cargo.toml",
         "core-modules/compression/guest/Cargo.toml",
         "core-modules/compression/host/Cargo.toml",
+        "core-modules/pagerank/guest/Cargo.toml",
+        "core-modules/pagerank/host/Cargo.toml",
 
         "demos/memory-layout-example/guest/Cargo.toml",
         "demos/memory-layout-example/host/Cargo.toml",
