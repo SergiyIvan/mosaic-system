@@ -29,6 +29,8 @@
         "core-modules/compression/host/Cargo.toml",
         "core-modules/pagerank/guest/Cargo.toml",
         "core-modules/pagerank/host/Cargo.toml",
+        "core-modules/mst/guest/Cargo.toml",
+        "core-modules/mst/host/Cargo.toml",
 
         "demos/memory-layout-example/guest/Cargo.toml",
         "demos/memory-layout-example/host/Cargo.toml",
