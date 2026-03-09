@@ -1,0 +1,170 @@
+use anyhow::Result;
+use wasmtime::*;
+use wasmtime_wasi::preview1::{self, WasiP1Ctx};
+use wasmtime_wasi::p2::WasiCtxBuilder;
+use std::time::{Duration, Instant};
+use minijinja::{Environment, context};
+use chrono::Local;
+use std::io::Read;
+
+struct ModuleState {
+    wasi: WasiP1Ctx,
+    trampoline_time: Duration,
+    compute_time: Duration,
+}
+
+fn main() -> Result<()> {
+    let engine = Engine::default();
+    let mut linker: Linker<ModuleState> = Linker::new(&engine);
+    preview1::add_to_linker_sync(&mut linker, |state| &mut state.wasi)?;
+
+    let module = Module::from_file(&engine, "../guest/target/wasm32-wasip1/release/guest.wasm")?;
+
+    linker.func_wrap("env", "host_reset_time", |mut caller: Caller<'_, ModuleState>| {
+        caller.data_mut().trampoline_time = Duration::ZERO;
+        caller.data_mut().compute_time = Duration::ZERO;
+    })?;
+
+    linker.func_wrap("env", "host_get_trampoline_time_nanos", |caller: Caller<'_, ModuleState>| -> u64 {
+        caller.data().trampoline_time.as_nanos() as u64
+    })?;
+
+    linker.func_wrap("env", "host_get_compute_time_nanos", |caller: Caller<'_, ModuleState>| -> u64 {
+        caller.data().compute_time.as_nanos() as u64
+    })?;
+
+    // --- host_download ---
+    linker.func_wrap("env", "host_download",
+        |mut caller: Caller<'_, ModuleState>, url_ptr: i32, url_len: i32, out_ptr: i32, max_len: i32| -> u32 {
+
+        let mem = match caller.get_export("memory") { Some(Extern::Memory(m)) => m, _ => return 0 };
+        let (data, _) = mem.data_and_store_mut(&mut caller);
+
+        let url_str = match std::str::from_utf8(&data[url_ptr as usize..(url_ptr + url_len) as usize]) {
+            Ok(s) => s,
+            Err(_) => return 0,
+        };
+
+        let mut response = match ureq::get(url_str).call() {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("HTTP Request Failed: {}", e);
+                return 0;
+            }
+        };
+
+        let out_slice = &mut data[out_ptr as usize..(out_ptr + max_len) as usize];
+
+        let mut reader = response.body_mut().as_reader();
+
+        // Read in a loop until EOF (0 bytes returned) to ensure we get the whole file.
+        let mut total_bytes_read = 0;
+        loop {
+            // Guard against buffer overflow.
+            if total_bytes_read >= max_len as usize {
+                eprintln!("Image exceeded max buffer size!");
+                return 0;
+            }
+
+            match reader.read(&mut out_slice[total_bytes_read..]) {
+                Ok(0) => break, // EOF reached, download complete.
+                Ok(n) => total_bytes_read += n,
+                Err(e) => {
+                    eprintln!("Failed reading body stream: {}", e);
+                    return 0;
+                }
+            }
+        }
+
+        total_bytes_read as u32
+    })?;
+
+    // --- host_render ---
+    linker.func_wrap("env", "host_render",
+        |mut caller: Caller<'_, ModuleState>,
+         template_ptr: i32, template_len: i32,
+         username_ptr: i32, username_len: i32,
+         rand_ptr: i32, rand_len: i32,
+         out_ptr: i32, max_len: i32| -> u32 {
+
+        let tramp_start = Instant::now();
+
+        let mem = match caller.get_export("memory") { Some(Extern::Memory(m)) => m, _ => return 0 };
+        // Getting raw pointers to extract multiple non-overlapping slices.
+        let base_ptr = mem.data_mut(&mut caller).as_mut_ptr();
+
+        let mem_len = mem.data(&caller).len();
+
+        // Bounds checks.
+        let bounds_ok = (template_ptr as usize + template_len as usize <= mem_len) &&
+                        (username_ptr as usize + username_len as usize <= mem_len) &&
+                        (rand_ptr as usize + (rand_len as usize * 4) <= mem_len) &&
+                        (out_ptr as usize + max_len as usize <= mem_len);
+
+        if !bounds_ok { return 0; }
+
+        let tramp_duration1 = tramp_start.elapsed();
+        let compute_start = Instant::now();
+
+        let html_output = unsafe {
+            let template_slice = std::slice::from_raw_parts(base_ptr.add(template_ptr as usize), template_len as usize);
+            let template_str = std::str::from_utf8(template_slice).unwrap_or("");
+
+            let username_slice = std::slice::from_raw_parts(base_ptr.add(username_ptr as usize), username_len as usize);
+            let username_str = std::str::from_utf8(username_slice).unwrap_or("");
+
+            // The random array is a slice of u32s.
+            let rand_ptr_actual = base_ptr.add(rand_ptr as usize) as *const u32;
+            let random_numbers = std::slice::from_raw_parts(rand_ptr_actual, rand_len as usize);
+
+            // MiniJinja setup and execution.
+            let mut env = Environment::new();
+            if env.add_template("tpl", template_str).is_err() { return 0; }
+            let tmpl = env.get_template("tpl").unwrap();
+
+            let cur_time = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+            // Render builds the final string.
+            match tmpl.render(context! {
+                username => username_str,
+                cur_time => cur_time,
+                random_numbers => random_numbers,
+            }) {
+                Ok(html) => html,
+                Err(_) => return 0,
+            }
+        };
+
+        let compute_duration = compute_start.elapsed();
+        let tramp_start2 = Instant::now();
+
+        // Copy back to Wasm Memory.
+        let html_bytes = html_output.as_bytes();
+        if html_bytes.len() > max_len as usize {
+            return 0; // Buffer too small.
+        }
+
+        unsafe {
+            let out_slice = std::slice::from_raw_parts_mut(base_ptr.add(out_ptr as usize), html_bytes.len());
+            out_slice.copy_from_slice(html_bytes);
+        }
+
+        let tramp_duration2 = tramp_start2.elapsed();
+
+        caller.data_mut().trampoline_time += tramp_duration1 + tramp_duration2;
+        caller.data_mut().compute_time += compute_duration;
+
+        html_bytes.len() as u32
+    })?;
+
+    let wasi = WasiCtxBuilder::new().inherit_stdout().inherit_stderr().build_p1();
+    let mut store = Store::new(&engine, ModuleState {
+        wasi, trampoline_time: Duration::ZERO, compute_time: Duration::ZERO
+    });
+
+    let instance = linker.instantiate(&mut store, &module)?;
+    let run = instance.get_typed_func::<(), u32>(&mut store, "run")?;
+    run.call(&mut store, ())?;
+
+    Ok(())
+}

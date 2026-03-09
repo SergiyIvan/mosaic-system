@@ -21,6 +21,8 @@
 
         "core-modules/thumbnailer/guest/Cargo.toml",
         "core-modules/thumbnailer/host/Cargo.toml",
+        "core-modules/dynamic-html/guest/Cargo.toml",
+        "core-modules/dynamic-html/host/Cargo.toml",
 
         "demos/memory-layout-example/guest/Cargo.toml",
         "demos/memory-layout-example/host/Cargo.toml",
