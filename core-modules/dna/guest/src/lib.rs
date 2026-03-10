@@ -22,7 +22,7 @@ const MAX_JSON_SIZE: usize = 200 * 1024 * 1024; // 200 MB output.
 pub extern "C" fn run() -> u32 {
     let url = "http://127.0.0.1:8000/bacillus_subtilis.fasta";
 
-    println!("=== SeBS DNA Visualization Benchmark ===");
+    eprintln!("=== SeBS DNA Visualization Benchmark ===");
     unsafe { host_reset_time(); }
 
     // Downloading.
@@ -65,8 +65,9 @@ pub extern "C" fn run() -> u32 {
     let host_compute_us = unsafe { host_get_compute_time_nanos() } as f64 / 1000.0;
     let wasm_overhead_us = process_time - (host_trampoline_us + host_compute_us);
 
-    println!("Success! DNA sequence transformed to 2D coordinates.");
+    eprintln!("Success! DNA sequence transformed to 2D coordinates.");
     println!("{{");
+    println!("  \"benchmark\": \"dna\",");
     println!("  \"measurement\": {{");
     println!("    \"download_time_us\": {:.2},", download_time);
     println!("    \"download_size\": {},", fasta_size);

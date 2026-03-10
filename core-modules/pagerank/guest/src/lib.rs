@@ -19,7 +19,7 @@ pub extern "C" fn run() -> u32 {
     let size = 10_000; // "small" config from SeBS.
     let m = 10;        // Edges per node in Barabasi-Albert.
 
-    println!("=== SeBS PageRank Benchmark ===");
+    eprintln!("=== SeBS PageRank Benchmark ===");
     unsafe { host_reset_time(); }
 
     // Generating inputs.
@@ -72,8 +72,9 @@ pub extern "C" fn run() -> u32 {
     let host_compute_us = unsafe { host_get_compute_time_nanos() } as f64 / 1000.0;
     let wasm_overhead_us = process_time - (host_trampoline_us + host_compute_us);
 
-    println!("Success! PageRank calculated.");
+    eprintln!("Success! PageRank calculated.");
     println!("{{");
+    println!("  \"benchmark\": \"pagerank\",");
     println!("  \"result\": {:.6},", pr_scores[0]); // Mimic python result[0].
     println!("  \"measurement\": {{");
     println!("    \"graph_generating_time_us\": {:.2},", gen_time);

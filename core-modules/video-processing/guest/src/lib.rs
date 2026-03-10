@@ -29,7 +29,7 @@ pub extern "C" fn run() -> u32 {
     let video_path = "/tmp/benchmark/video.mp4";
     let watermark_path = "/tmp/benchmark/watermark.png";
 
-    println!("=== SeBS Video Processing Benchmark ===");
+    eprintln!("=== SeBS Video Processing Benchmark ===");
     unsafe { host_reset_time(); }
 
     // Downloading.
@@ -83,8 +83,9 @@ pub extern "C" fn run() -> u32 {
     let host_compute_us = unsafe { host_get_compute_time_nanos() } as f64 / 1000.0;
     let wasm_overhead_us = process_time - (host_trampoline_us + host_compute_us);
 
-    println!("Success! Video processed.");
+    eprintln!("Success! Video processed.");
     println!("{{");
+    println!("  \"benchmark\": \"video-processing\",");
     println!("  \"measurement\": {{");
     println!("    \"download_time_us\": {:.2},", download_time);  // Includes only the download part - calculated on guest.
     println!("    \"download_size\": {},", video_size + watermark_size);

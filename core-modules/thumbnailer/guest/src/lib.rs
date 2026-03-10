@@ -25,7 +25,7 @@ pub extern "C" fn run() -> u32 {
     let target_width = 200;
     let target_height = 200;
 
-    println!("=== SeBS Thumbnailer Benchmark ===");
+    eprintln!("=== SeBS Thumbnailer Benchmark ===");
 
     unsafe { host_reset_time(); }
 
@@ -67,8 +67,9 @@ pub extern "C" fn run() -> u32 {
     let host_compute_us = unsafe { host_get_compute_time_nanos() } as f64 / 1000.0;
     let wasm_overhead_us = process_time - (host_trampoline_us + host_compute_us);
 
-    println!("Success! Image processed.");
+    eprintln!("Success! Image processed.");
     println!("{{");
+    println!("  \"benchmark\": \"thumbnailer\",");
     println!("  \"measurement\": {{");
     println!("    \"download_time_us\": {:.2},", download_time);  // Includes only the download part - calculated on guest.
     println!("    \"download_size\": {},", download_size);

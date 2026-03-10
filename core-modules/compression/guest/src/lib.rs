@@ -24,7 +24,7 @@ const MAX_OUTPUT_SIZE: usize = 10 * 1024 * 1024; // 10 MB max output
 pub extern "C" fn run() -> u32 {
     let input_url = "http://127.0.0.1:8000/video.mp4";
 
-    println!("=== SeBS Compression Benchmark (Zstandard) ===");
+    eprintln!("=== SeBS Compression Benchmark (Zstandard) ===");
     unsafe { host_reset_time(); }
 
     // Downloading.
@@ -69,8 +69,9 @@ pub extern "C" fn run() -> u32 {
 
     let compression_ratio = uncompressed_size as f64 / compressed_size as f64;
 
-    println!("Success! Dataset compressed.");
+    eprintln!("Success! Dataset compressed.");
     println!("{{");
+    println!("  \"benchmark\": \"compression\",");
     println!("  \"measurement\": {{");
     println!("    \"download_time_us\": {:.2},", download_time);  // Includes only the download part - calculated on guest.
     println!("    \"download_size\": {},", uncompressed_size);

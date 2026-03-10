@@ -29,7 +29,7 @@ pub extern "C" fn run() -> u32 {
     let username = "rbruno";
     let random_len = 1_000_000;
 
-    println!("=== SeBS Dynamic HTML Benchmark ===");
+    eprintln!("=== SeBS Dynamic HTML Benchmark ===");
     unsafe { host_reset_time(); }
 
     // Generating random numbers.
@@ -82,8 +82,9 @@ pub extern "C" fn run() -> u32 {
     let host_compute_us = unsafe { host_get_compute_time_nanos() } as f64 / 1000.0;
     let wasm_overhead_us = process_time - (host_trampoline_us + host_compute_us);
 
-    println!("Success! Template rendered.");
+    eprintln!("Success! Template rendered.");
     println!("{{");
+    println!("  \"benchmark\": \"dynamic-html\",");
     println!("  \"measurement\": {{");
     println!("    \"download_time_us\": {:.2},", download_time);  // Includes only the download part - calculated on guest.
     println!("    \"download_size\": {},", template_size);

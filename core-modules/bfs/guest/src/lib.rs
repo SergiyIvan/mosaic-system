@@ -20,7 +20,7 @@ pub extern "C" fn run() -> u32 {
     let size = 100_000; // "large" config from SeBS.
     let m = 10;        // Edges per node in Barabasi-Albert.
 
-    println!("=== SeBS BFS Benchmark ===");
+    eprintln!("=== SeBS BFS Benchmark ===");
     unsafe { host_reset_time(); }
 
     // Generating inputs.
@@ -75,8 +75,9 @@ pub extern "C" fn run() -> u32 {
     let host_compute_us = unsafe { host_get_compute_time_nanos() } as f64 / 1000.0;
     let wasm_overhead_us = process_time - (host_trampoline_us + host_compute_us);
 
-    println!("Success! BFS completed.");
+    eprintln!("Success! BFS completed.");
     println!("{{");
+    println!("  \"benchmark\": \"bfs\",");
     println!("  \"result\": \"Visited {} nodes (Starting from {})\",", visited_count, start_node);
     println!("  \"measurement\": {{");
     println!("    \"graph_generating_time_us\": {:.2},", gen_time);
