@@ -5,6 +5,10 @@ unsafe extern "C" {
     // Downloads from URL into Wasm memory. Returns actual byte size, or 0 on error.
     fn host_download(url_ptr: *const u8, url_len: u32, out_ptr: *mut u8, max_len: u32) -> u32;
 
+    fn host_download_to_file(url_ptr: *const u8, url_len: u32, path_ptr: *const u8, path_len: u32) -> u32;
+    fn host_file_exists(path_ptr: *const u8, path_len: u32) -> u32;
+    fn host_read_file(path_ptr: *const u8, path_len: u32, out_ptr: *mut u8, max_len: u32) -> u32;
+
     // Runs inference using ONNX Runtime. Returns the top-1 class index.
     fn host_infer(
         model_ptr: *const u8, model_len: u32,
@@ -26,6 +30,9 @@ pub extern "C" fn run() -> u32 {
     let image_url = "http://127.0.0.1:8000/eagle.jpg";
     let labels_url = "http://127.0.0.1:8000/resnet_labels.txt";
 
+    let model_path = "/tmp/resnet50.onnx";
+    let labels_path = "/tmp/resnet_labels.txt";
+
     eprintln!("=== SeBS Classify Benchmark ===");
     unsafe { host_reset_time(); }
 
@@ -36,14 +43,27 @@ pub extern "C" fn run() -> u32 {
     let mut img_buf = vec![0u8; MAX_IMAGE_SIZE];
     let mut labels_buf = vec![0u8; MAX_LABELS_SIZE];
 
-    let model_size = unsafe { host_download(model_url.as_ptr(), model_url.len() as u32, model_buf.as_mut_ptr(), MAX_MODEL_SIZE as u32) };
-    if model_size == 0 { eprintln!("Failed to download model."); return 1; }
+    // Model - download to disk if missing, then read into memory.
+    unsafe {
+        if host_file_exists(model_path.as_ptr(), model_path.len() as u32) == 0 {
+            host_download_to_file(model_url.as_ptr(), model_url.len() as u32, model_path.as_ptr(), model_path.len() as u32);
+        }
+    }
+    let model_size = unsafe { host_read_file(model_path.as_ptr(), model_path.len() as u32, model_buf.as_mut_ptr(), MAX_MODEL_SIZE as u32) };
+    if model_size == 0 { return 1; }
 
+    // Labels - download to disk if missing, then read into memory.
+    unsafe {
+        if host_file_exists(labels_path.as_ptr(), labels_path.len() as u32) == 0 {
+            host_download_to_file(labels_url.as_ptr(), labels_url.len() as u32, labels_path.as_ptr(), labels_path.len() as u32);
+        }
+    }
+    let labels_size = unsafe { host_read_file(labels_path.as_ptr(), labels_path.len() as u32, labels_buf.as_mut_ptr(), MAX_LABELS_SIZE as u32) };
+    if labels_size == 0 { return 1; }
+
+    // Image - always download directly into memory.
     let img_size = unsafe { host_download(image_url.as_ptr(), image_url.len() as u32, img_buf.as_mut_ptr(), MAX_IMAGE_SIZE as u32) };
-    if img_size == 0 { eprintln!("Failed to download image."); return 1; }
-
-    let labels_size = unsafe { host_download(labels_url.as_ptr(), labels_url.len() as u32, labels_buf.as_mut_ptr(), MAX_LABELS_SIZE as u32) };
-    if labels_size == 0 { eprintln!("Failed to download labels."); return 1; }
+    if img_size == 0 { return 1; }
 
     let download_time = download_start.elapsed().as_micros() as f64;
 

@@ -82,6 +82,88 @@ fn main() -> Result<()> {
         total_bytes_read as u32
     })?;
 
+    // --- host_file_exists ---
+    linker.func_wrap("env", "host_file_exists", |mut caller: Caller<'_, ModuleState>, path_ptr: i32, path_len: i32| -> u32 {
+        let mem = match caller.get_export("memory") { Some(Extern::Memory(m)) => m, _ => return 0 };
+        let data = mem.data(&caller);
+        let path_str = std::str::from_utf8(&data[path_ptr as usize..(path_ptr + path_len) as usize]).unwrap_or("");
+
+        if std::path::Path::new(path_str).exists() { 1 } else { 0 }
+    })?;
+
+    // --- host_read_file ---
+    linker.func_wrap("env", "host_read_file", |mut caller: Caller<'_, ModuleState>, path_ptr: i32, path_len: i32, out_ptr: i32, max_len: i32| -> u32 {
+        let mem = match caller.get_export("memory") { Some(Extern::Memory(m)) => m, _ => return 0 };
+        let (data, _) = mem.data_and_store_mut(&mut caller);
+
+        let path_str = match std::str::from_utf8(&data[path_ptr as usize..(path_ptr + path_len) as usize]) {
+            Ok(s) => s,
+            Err(_) => return 0,
+        };
+
+        // Copy string to avoid overlapping borrow of `data` when we write the file to memory.
+        let path = path_str.to_string();
+
+        match std::fs::read(&path) {
+            Ok(file_data) => {
+                if file_data.len() > max_len as usize { return 0; }
+                let out_slice = &mut data[out_ptr as usize..(out_ptr as usize + file_data.len())];
+                out_slice.copy_from_slice(&file_data);
+                file_data.len() as u32
+            }
+            Err(_) => 0
+        }
+    })?;
+
+    // --- host_download_to_file ---
+    linker.func_wrap("env", "host_download_to_file",
+        |mut caller: Caller<'_, ModuleState>,
+         url_ptr: i32, url_len: i32,
+         path_ptr: i32, path_len: i32| -> u32 {
+
+        let mem = match caller.get_export("memory") { Some(Extern::Memory(m)) => m, _ => return 0 };
+        let data = mem.data(&caller);
+
+        let url_str = match std::str::from_utf8(&data[url_ptr as usize..(url_ptr + url_len) as usize]) {
+            Ok(s) => s,
+            Err(_) => return 0,
+        };
+
+        let path_str = match std::str::from_utf8(&data[path_ptr as usize..(path_ptr + path_len) as usize]) {
+            Ok(s) => s,
+            Err(_) => return 0,
+        };
+
+        // Make the HTTP request.
+        let mut response = match ureq::get(url_str).call() {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("HTTP Request Failed: {}", e);
+                return 0;
+            }
+        };
+
+        // Create the file on the host OS.
+        let mut file = match std::fs::File::create(path_str) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("Failed to create file: {}", e);
+                return 0;
+            }
+        };
+
+        let mut reader = response.body_mut().as_reader();
+
+        // Stream directly from network to disk.
+        match std::io::copy(&mut reader, &mut file) {
+            Ok(bytes_written) => bytes_written as u32,
+            Err(e) => {
+                eprintln!("Failed to write stream to disk: {}", e);
+                0
+            }
+        }
+    })?;
+
     // --- host_infer ---
     linker.func_wrap("env", "host_infer",
         |mut caller: Caller<'_, ModuleState>,
