@@ -37,6 +37,8 @@
         "core-modules/dna/host/Cargo.toml",
         "core-modules/uploader/guest/Cargo.toml",
         "core-modules/uploader/host/Cargo.toml",
+        "core-modules/classify/guest/Cargo.toml",
+        "core-modules/classify/host/Cargo.toml",
 
         "demos/memory-layout-example/guest/Cargo.toml",
         "demos/memory-layout-example/host/Cargo.toml",

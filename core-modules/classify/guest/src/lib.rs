@@ -1,0 +1,80 @@
+use std::time::Instant;
+
+#[link(wasm_import_module = "env")]
+unsafe extern "C" {
+    // Downloads from URL into Wasm memory. Returns actual byte size, or 0 on error.
+    fn host_download(url_ptr: *const u8, url_len: u32, out_ptr: *mut u8, max_len: u32) -> u32;
+
+    // Runs inference using ONNX Runtime. Returns the top-1 class index.
+    fn host_infer(
+        model_ptr: *const u8, model_len: u32,
+        img_ptr: *const u8, img_len: u32
+    ) -> u32;
+
+    fn host_reset_time();
+    fn host_get_trampoline_time_nanos() -> u64;
+    fn host_get_compute_time_nanos() -> u64;
+}
+
+const MAX_MODEL_SIZE: usize = 120 * 1024 * 1024; // 120 MB
+const MAX_IMAGE_SIZE: usize = 10 * 1024 * 1024;  // 10 MB
+const MAX_LABELS_SIZE: usize = 128 * 1024;       // 128 KB
+
+#[unsafe(no_mangle)]
+pub extern "C" fn run() -> u32 {
+    let model_url = "http://127.0.0.1:8000/resnet50.onnx";
+    let image_url = "http://127.0.0.1:8000/eagle.jpg";
+    let labels_url = "http://127.0.0.1:8000/resnet_labels.txt";
+
+    eprintln!("=== SeBS Classify Benchmark ===");
+    unsafe { host_reset_time(); }
+
+    // Downloading.
+    let download_start = Instant::now();
+
+    let mut model_buf = vec![0u8; MAX_MODEL_SIZE];
+    let mut img_buf = vec![0u8; MAX_IMAGE_SIZE];
+    let mut labels_buf = vec![0u8; MAX_LABELS_SIZE];
+
+    let model_size = unsafe { host_download(model_url.as_ptr(), model_url.len() as u32, model_buf.as_mut_ptr(), MAX_MODEL_SIZE as u32) };
+    if model_size == 0 { eprintln!("Failed to download model."); return 1; }
+
+    let img_size = unsafe { host_download(image_url.as_ptr(), image_url.len() as u32, img_buf.as_mut_ptr(), MAX_IMAGE_SIZE as u32) };
+    if img_size == 0 { eprintln!("Failed to download image."); return 1; }
+
+    let labels_size = unsafe { host_download(labels_url.as_ptr(), labels_url.len() as u32, labels_buf.as_mut_ptr(), MAX_LABELS_SIZE as u32) };
+    if labels_size == 0 { eprintln!("Failed to download labels."); return 1; }
+
+    let download_time = download_start.elapsed().as_micros() as f64;
+
+    // Classification.
+    let process_start = Instant::now();
+
+    let class_idx = unsafe { host_infer(model_buf.as_ptr(), model_size, img_buf.as_ptr(), img_size) };
+
+    let labels_str = std::str::from_utf8(&labels_buf[..labels_size as usize]).unwrap_or("");
+    let class_name = labels_str.lines().nth(class_idx as usize).unwrap_or("Unknown");
+
+    let process_time = process_start.elapsed().as_micros() as f64;
+
+    let host_trampoline_us = unsafe { host_get_trampoline_time_nanos() } as f64 / 1000.0;
+    let host_compute_us = unsafe { host_get_compute_time_nanos() } as f64 / 1000.0;
+    let wasm_overhead_us = process_time - (host_trampoline_us + host_compute_us);
+
+    println!("{{");
+    println!("  \"benchmark\": \"classify\",");
+    println!("  \"result\": \"Class: {} (Index: {})\",", class_name, class_idx);
+    println!("  \"measurement\": {{");
+    println!("    \"download_time_us\": {:.2},", download_time);
+    println!("    \"download_size\": {},", model_size + img_size);
+    println!("    \"process_time_us\": {:.2},", process_time);
+    println!("    \"breakdown\": {{");
+    println!("      \"host_compute_us\": {:.2},", host_compute_us);
+    println!("      \"host_trampoline_us\": {:.2},", host_trampoline_us);
+    println!("      \"wasm_overhead_us\": {:.2}", wasm_overhead_us);
+    println!("    }}");
+    println!("  }}");
+    println!("}}");
+
+    0
+}
