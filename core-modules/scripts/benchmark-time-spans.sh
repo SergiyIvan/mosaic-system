@@ -1,9 +1,14 @@
 #!/bin/bash
 
+function DIR {
+    echo "$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+}
+
 set -e
 
 ITERATIONS=10
-RESULT_FILE="plots/result.json"
+RESULT_FILE="$(DIR)/../plots/mosaic-time-spans/result.json"
+BENCHMARKS_DIR="$(DIR)/../mosaic-time-spans"
 
 BENCHMARKS=(
     "bfs"
@@ -24,12 +29,13 @@ function build_benchmarks {
     echo "==================================="
     for BENCH in "${BENCHMARKS[@]}"; do
         echo "Compiling [$BENCH]..."
+        BENCH_DIR="$BENCHMARKS_DIR/$BENCH"
 
-        cd "$BENCH/guest"
+        cd "$BENCH_DIR/guest"
         cargo build --release --target wasm32-wasip1 --quiet
-        cd "../../$BENCH/host"
+        cd "$BENCH_DIR/host"
         cargo build --release --quiet
-        cd ../..
+        cd $BENCHMARKS_DIR
     done
     echo "All builds completed successfully."
     echo ""
@@ -45,20 +51,21 @@ function run_benchmarks {
 
     for BENCH in "${BENCHMARKS[@]}"; do
         echo "Starting [$BENCH] - $ITERATIONS iterations..."
+        BENCH_DIR="$BENCHMARKS_DIR/$BENCH"
 
-        cd "$BENCH/host"
+        cd "$BENCH_DIR/host"
         for ((i=1; i<=ITERATIONS; i++)); do
             echo "  Running iteration $i/$ITERATIONS..."
 
             if [ "$FIRST_ITEM" = true ]; then
                 FIRST_ITEM=false
             else
-                echo "," >> "../../$RESULT_FILE"
+                echo "," >> "$RESULT_FILE"
             fi
 
-            cargo run --release --quiet >> "../../$RESULT_FILE"
+            cargo run --release --quiet >> "$RESULT_FILE"
         done
-        cd ../..
+        cd $BENCHMARKS_DIR
         echo "Finished [$BENCH]."
         echo "" >> "$RESULT_FILE"
     done
