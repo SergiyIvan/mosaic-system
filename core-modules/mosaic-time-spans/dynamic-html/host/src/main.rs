@@ -1,17 +1,12 @@
 use anyhow::Result;
-use wasmtime::*;
-use wasmtime_wasi::preview1::{self, WasiP1Ctx};
-use wasmtime_wasi::p2::WasiCtxBuilder;
-use std::time::{Duration, Instant};
+use std::time::Instant;
+use wasmtime::{Caller, Extern, Linker};
+use runner::ModuleState;
+
 use minijinja::{Environment, context};
 use chrono::Local;
 use std::io::Read;
 
-struct ModuleState {
-    wasi: WasiP1Ctx,
-    trampoline_time: Duration,
-    compute_time: Duration,
-}
 
 // A wrapper to allow MiniJinja to write bytes directly into a raw Wasm byte buffer.
 struct WasmBufferWriter<'a> {
@@ -45,25 +40,7 @@ impl<'a> std::io::Write for WasmBufferWriter<'a> {
 }
 
 
-fn main() -> Result<()> {
-    let engine = Engine::default();
-    let mut linker: Linker<ModuleState> = Linker::new(&engine);
-    preview1::add_to_linker_sync(&mut linker, |state| &mut state.wasi)?;
-
-    let module = Module::from_file(&engine, "../guest/target/wasm32-wasip1/release/guest.wasm")?;
-
-    linker.func_wrap("env", "host_reset_time", |mut caller: Caller<'_, ModuleState>| {
-        caller.data_mut().trampoline_time = Duration::ZERO;
-        caller.data_mut().compute_time = Duration::ZERO;
-    })?;
-
-    linker.func_wrap("env", "host_get_trampoline_time_nanos", |caller: Caller<'_, ModuleState>| -> u64 {
-        caller.data().trampoline_time.as_nanos() as u64
-    })?;
-
-    linker.func_wrap("env", "host_get_compute_time_nanos", |caller: Caller<'_, ModuleState>| -> u64 {
-        caller.data().compute_time.as_nanos() as u64
-    })?;
+fn register_host_funcs(linker: &mut Linker<ModuleState>) -> Result<()> {
 
     // --- host_download ---
     linker.func_wrap("env", "host_download",
@@ -174,14 +151,10 @@ fn main() -> Result<()> {
         bytes_written
     })?;
 
-    let wasi = WasiCtxBuilder::new().inherit_stdout().inherit_stderr().build_p1();
-    let mut store = Store::new(&engine, ModuleState {
-        wasi, trampoline_time: Duration::ZERO, compute_time: Duration::ZERO
-    });
-
-    let instance = linker.instantiate(&mut store, &module)?;
-    let run = instance.get_typed_func::<(), u32>(&mut store, "run")?;
-    run.call(&mut store, ())?;
-
     Ok(())
+}
+
+fn main() -> Result<()> {
+    let wasm_path = "../guest/target/wasm32-wasip1/release/guest.wasm";
+    runner::run_wasm(wasm_path, register_host_funcs)
 }

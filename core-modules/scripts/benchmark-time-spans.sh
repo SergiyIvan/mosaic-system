@@ -9,6 +9,7 @@ set -e
 ITERATIONS=10
 RESULT_FILE="$(DIR)/../plots/mosaic-time-spans/result.json"
 BENCHMARKS_DIR="$(DIR)/../mosaic-time-spans"
+RUNNER_DIR="$(DIR)/../runner"
 
 BENCHMARKS=(
     "bfs"
@@ -27,6 +28,11 @@ function build_benchmarks {
     echo "==================================="
     echo "   Building all guests and hosts   "
     echo "==================================="
+
+    cd "$RUNNER_DIR"
+    cargo build --release --quiet
+    cd -
+
     for BENCH in "${BENCHMARKS[@]}"; do
         echo "Compiling [$BENCH]..."
         BENCH_DIR="$BENCHMARKS_DIR/$BENCH"

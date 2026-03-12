@@ -1,43 +1,19 @@
 use anyhow::Result;
-use wasmtime::*;
-use wasmtime_wasi::preview1::{self, WasiP1Ctx};
-use wasmtime_wasi::p2::WasiCtxBuilder;
-use std::time::{Duration, Instant};
+use std::time::Instant;
+use wasmtime::{Caller, Extern, Linker};
+use runner::ModuleState;
+
 use std::collections::VecDeque;
 
-struct ModuleState {
-    wasi: WasiP1Ctx,
-    trampoline_time: Duration,
-    compute_time: Duration,
-}
 
-
-fn main() -> Result<()> {
-    let engine = Engine::default();
-    let mut linker: Linker<ModuleState> = Linker::new(&engine);
-    preview1::add_to_linker_sync(&mut linker, |state| &mut state.wasi)?;
-
-    let module = Module::from_file(&engine, "../guest/target/wasm32-wasip1/release/guest.wasm")?;
-
-    linker.func_wrap("env", "host_reset_time", |mut caller: Caller<'_, ModuleState>| {
-        caller.data_mut().trampoline_time = Duration::ZERO;
-        caller.data_mut().compute_time = Duration::ZERO;
-    })?;
-
-    linker.func_wrap("env", "host_get_trampoline_time_nanos", |caller: Caller<'_, ModuleState>| -> u64 {
-        caller.data().trampoline_time.as_nanos() as u64
-    })?;
-
-    linker.func_wrap("env", "host_get_compute_time_nanos", |caller: Caller<'_, ModuleState>| -> u64 {
-        caller.data().compute_time.as_nanos() as u64
-    })?;
+fn register_host_funcs(linker: &mut Linker<ModuleState>) -> Result<()> {
 
     // --- host_bfs ---
     linker.func_wrap("env", "host_bfs",
         |mut caller: Caller<'_, ModuleState>,
-         edges_ptr: i32, edges_len: i32,
-         out_ptr: i32, max_out_len: i32,
-         num_nodes: i32, start_node: i32| -> u32 {
+        edges_ptr: i32, edges_len: i32,
+        out_ptr: i32, max_out_len: i32,
+        num_nodes: i32, start_node: i32| -> u32 {
 
         let tramp_start = Instant::now();
 
@@ -113,14 +89,10 @@ fn main() -> Result<()> {
         visited_count
     })?;
 
-    let wasi = WasiCtxBuilder::new().inherit_stdout().inherit_stderr().build_p1();
-    let mut store = Store::new(&engine, ModuleState {
-        wasi, trampoline_time: Duration::ZERO, compute_time: Duration::ZERO
-    });
-
-    let instance = linker.instantiate(&mut store, &module)?;
-    let run = instance.get_typed_func::<(), u32>(&mut store, "run")?;
-    run.call(&mut store, ())?;
-
     Ok(())
+}
+
+fn main() -> Result<()> {
+    let wasm_path = "../guest/target/wasm32-wasip1/release/guest.wasm";
+    runner::run_wasm(wasm_path, register_host_funcs)
 }

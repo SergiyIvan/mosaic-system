@@ -19,6 +19,8 @@
         "component-model/ffmpeg/native-ffmpeg-app/Cargo.toml",
         "component-model/wasmtime-state/Cargo.toml",
 
+        "core-modules/runner/Cargo.toml",
+
         "core-modules/mosaic-time-spans/thumbnailer/guest/Cargo.toml",
         "core-modules/mosaic-time-spans/thumbnailer/host/Cargo.toml",
         "core-modules/mosaic-time-spans/dynamic-html/guest/Cargo.toml",
