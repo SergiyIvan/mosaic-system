@@ -13,7 +13,9 @@ target_benchmarks = [
     "mst",
     "pagerank",
     "thumbnailer",
-    "video-processing"
+    "video-processing",
+    "uploader",
+    "classify"
 ]
 
 def parse_time_breakdown(filename):

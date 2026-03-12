@@ -14,6 +14,8 @@ BENCHMARKS=(
     "pagerank"
     "thumbnailer"
     "video-processing"
+    "uploader"
+    "classify"
 )
 
 function build_benchmarks {
