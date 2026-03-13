@@ -6,10 +6,13 @@ function DIR {
 
 set -e
 
-ITERATIONS=10
-RESULT_FILE="$(DIR)/../plots/mosaic-time-spans/result.json"
-BENCHMARKS_DIR="$(DIR)/../mosaic-time-spans"
+ITERATIONS=5
+RESULT_FILE="$(DIR)/../plots/mosaic-throughput/result.json"
+BENCHMARKS_DIR="$(DIR)/../mosaic"
 RUNNER_DIR="$(DIR)/../runner"
+
+BENCHMARK_DURATION=10
+WARMUP_ITERATIONS=10
 
 BENCHMARKS=(
     "bfs"
@@ -69,7 +72,7 @@ function run_benchmarks {
                 echo "," >> "$RESULT_FILE"
             fi
 
-            cargo run --release --quiet >> "$RESULT_FILE"
+            cargo run --release --quiet -- $BENCHMARK_DURATION $WARMUP_ITERATIONS >> "$RESULT_FILE"
         done
         cd $BENCHMARKS_DIR
         echo "Finished [$BENCH]."
