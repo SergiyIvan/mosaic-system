@@ -1,0 +1,10 @@
+[package]
+name = "bfs"
+version = "0.1.0"
+edition = "2021"
+description = """
+SeBS BFS
+"""
+
+[dependencies]
+rand = "0.8"

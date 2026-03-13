@@ -1,0 +1,10 @@
+[package]
+name = "mst"
+version = "0.1.0"
+edition = "2021"
+description = """
+SeBS MST
+"""
+
+[dependencies]
+rand = "0.8"
