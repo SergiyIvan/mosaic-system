@@ -1,0 +1,11 @@
+[package]
+name = "thumbnailer"
+version = "0.1.0"
+edition = "2021"
+description = """
+SeBS Thumbnailer
+"""
+
+[dependencies]
+ureq = "3.2"
+image = "0.25"

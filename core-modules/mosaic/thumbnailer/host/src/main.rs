@@ -60,36 +60,32 @@ fn register_host_funcs(linker: &mut Linker<ModuleState>) -> Result<()> {
          out_ptr: i32, max_len: i32| -> u32 {
 
         let mem = match caller.get_export("memory") { Some(Extern::Memory(m)) => m, _ => return 0 };
-        let (data, _) = mem.data_and_store_mut(&mut caller);
-
-        let in_slice = &data[in_ptr as usize..(in_ptr + in_len) as usize];
 
         // Decode image.
-        let img = match image::load_from_memory(in_slice) {
-            Ok(i) => i,
-            Err(_) => return 0,
+        let img = {
+            let data = mem.data(&caller);
+            let in_slice = &data[in_ptr as usize..(in_ptr + in_len) as usize];
+            match image::load_from_memory(in_slice) {
+                Ok(i) => i,
+                Err(_) => return 0,
+            }
         };
 
         // Resize.
         // FilterType::Lanczos3 is high quality, should be CPU bound.
         let resized = img.resize(w as u32, h as u32, FilterType::Lanczos3);
 
+        let (data, _) = mem.data_and_store_mut(&mut caller);
+        let out_slice = &mut data[out_ptr as usize..(out_ptr + max_len) as usize];
+
+        let mut cursor = Cursor::new(out_slice);
+
         // Encode to JPEG.
-        let mut jpeg_bytes: Vec<u8> = Vec::new();
-        let mut cursor = Cursor::new(&mut jpeg_bytes);
         if resized.write_to(&mut cursor, image::ImageFormat::Jpeg).is_err() {
             return 0;
         }
 
-        // Copy output back to Wasm Memory.
-        if jpeg_bytes.len() > max_len as usize {
-            return 0; // Output buffer too small.
-        }
-
-        let out_slice = &mut data[out_ptr as usize..(out_ptr as usize + jpeg_bytes.len())];
-        out_slice.copy_from_slice(&jpeg_bytes);
-
-        jpeg_bytes.len() as u32
+        cursor.position() as u32
     })?;
 
     Ok(())

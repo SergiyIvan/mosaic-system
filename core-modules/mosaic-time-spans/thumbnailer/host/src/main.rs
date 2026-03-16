@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use wasmtime::{Caller, Extern, Linker};
 use runner::ModuleState;
 
@@ -63,46 +63,43 @@ fn register_host_funcs(linker: &mut Linker<ModuleState>) -> Result<()> {
         let tramp_start = Instant::now();
 
         let mem = match caller.get_export("memory") { Some(Extern::Memory(m)) => m, _ => return 0 };
-        let (data, _) = mem.data_and_store_mut(&mut caller);
-
-        let in_slice = &data[in_ptr as usize..(in_ptr + in_len) as usize];
-
-        let tramp_duration1 = tramp_start.elapsed();
-        let compute_start = Instant::now();
 
         // Decode image.
-        let img = match image::load_from_memory(in_slice) {
-            Ok(i) => i,
-            Err(_) => return 0,
+        let img = {
+            let data = mem.data(&caller);
+            let in_slice = &data[in_ptr as usize..(in_ptr + in_len) as usize];
+
+            match image::load_from_memory(in_slice) {
+                Ok(i) => i,
+                Err(_) => return 0,
+            }
         };
+
+        let tramp_duration: Duration = tramp_start.elapsed();
+        let compute_start: Instant = Instant::now();
 
         // Resize.
         // FilterType::Lanczos3 is high quality, should be CPU bound.
         let resized = img.resize(w as u32, h as u32, FilterType::Lanczos3);
 
-        // Encode to JPEG.
-        let mut jpeg_bytes: Vec<u8> = Vec::new();
-        let mut cursor = Cursor::new(&mut jpeg_bytes);
-        if resized.write_to(&mut cursor, image::ImageFormat::Jpeg).is_err() {
-            return 0;
-        }
+        let bytes_written = {
+            let (data, _) = mem.data_and_store_mut(&mut caller);
+            let out_slice = &mut data[out_ptr as usize..(out_ptr + max_len) as usize];
+
+            let mut cursor = Cursor::new(out_slice);
+
+            // Encode to JPEG.
+            if resized.write_to(&mut cursor, image::ImageFormat::Jpeg).is_err() {
+                return 0;
+            }
+            cursor.position() as u32
+        };
 
         let compute_duration = compute_start.elapsed();
-        let tramp_start2 = Instant::now();
-
-        // Copy output back to Wasm Memory.
-        if jpeg_bytes.len() > max_len as usize {
-            return 0; // Output buffer too small.
-        }
-
-        let out_slice = &mut data[out_ptr as usize..(out_ptr as usize + jpeg_bytes.len())];
-        out_slice.copy_from_slice(&jpeg_bytes);
-
-        let tramp_duration2 = tramp_start2.elapsed();
-        caller.data_mut().trampoline_time += tramp_duration1 + tramp_duration2;
+        caller.data_mut().trampoline_time += tramp_duration;
         caller.data_mut().compute_time += compute_duration;
 
-        jpeg_bytes.len() as u32
+        bytes_written
     })?;
 
     Ok(())
