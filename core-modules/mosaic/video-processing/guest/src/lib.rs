@@ -1,19 +1,11 @@
 #[link(wasm_import_module = "env")]
 unsafe extern "C" {
-    // Downloads from URL into Wasm memory. Returns actual byte size, or 0 on error.
-    fn host_download(url_ptr: *const u8, url_len: u32, out_ptr: *mut u8, max_len: u32) -> u32;
-
-    // Writes Wasm memory buffer directly to a file on the host OS.
-    fn host_write_file(
-        path_ptr: *const u8, path_len: u32,
-        data_ptr: *const u8, data_len: u32
-    ) -> u32;
+    // Downloads from URL directly to a file path on the host. Returns bytes written or 0 on error.
+    fn host_download_to_file(url_ptr: *const u8, url_len: u32, path_ptr: *const u8, path_len: u32) -> u32;
 
     // Executes a shell command on the host OS.
     fn host_run_command(cmd_ptr: *const u8, cmd_len: u32) -> u32;
 }
-
-const MAX_FILE_SIZE: usize = 5 * 1024 * 1024; // 5 MB for video
 
 #[unsafe(no_mangle)]
 pub extern "C" fn run() -> u32 {
@@ -27,21 +19,21 @@ pub extern "C" fn run() -> u32 {
     let watermark_output_path = "/tmp/watermarked.mp4";
 
     // Downloading.
-    let mut media_buf = vec![0u8; MAX_FILE_SIZE];
-
-    // Downloading video.
     let video_size = unsafe {
-        host_download(video_url.as_ptr(), video_url.len() as u32, media_buf.as_mut_ptr(), MAX_FILE_SIZE as u32)
+        host_download_to_file(
+            video_url.as_ptr(), video_url.len() as u32,
+            video_path.as_ptr(), video_path.len() as u32
+        )
     };
     if video_size == 0 { eprintln!("Failed to download video."); return 1; }
-    unsafe { host_write_file(video_path.as_ptr(), video_path.len() as u32, media_buf.as_ptr(), video_size) }; // TODO: reuse host_download_to_file?
 
-    // Downloading watermark.
     let watermark_size = unsafe {
-        host_download(watermark_url.as_ptr(), watermark_url.len() as u32, media_buf.as_mut_ptr(), MAX_FILE_SIZE as u32)
+        host_download_to_file(
+            watermark_url.as_ptr(), watermark_url.len() as u32,
+            watermark_path.as_ptr(), watermark_path.len() as u32
+        )
     };
     if watermark_size == 0 { eprintln!("Failed to download watermark."); return 1; }
-    unsafe { host_write_file(watermark_path.as_ptr(), watermark_path.len() as u32, media_buf.as_ptr(), watermark_size) }; // TODO: reuse host_download_to_file?
 
     // Running FFmpeg.
     // Command 1: Extract GIF (Duration: 5 seconds).

@@ -1,0 +1,10 @@
+[package]
+name = "video-processing"
+version = "0.1.0"
+edition = "2021"
+description = """
+SeBS Video Processing
+"""
+
+[dependencies]
+ureq = "3.2"
