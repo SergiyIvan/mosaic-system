@@ -1,0 +1,6 @@
+[alias]
+build-naive = "build --release"
+run-naive   = "run --release"
+
+build-native = ["build", "--release", "--config", "build.rustflags=['-C', 'target-cpu=native']"]
+run-native   = ["run", "--release", "--config", "build.rustflags=['-C', 'target-cpu=native']"]

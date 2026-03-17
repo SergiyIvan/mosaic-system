@@ -1,0 +1,10 @@
+[package]
+name = "uploader"
+version = "0.1.0"
+edition = "2021"
+description = """
+SeBS Uploader
+"""
+
+[dependencies]
+ureq = "3.2"

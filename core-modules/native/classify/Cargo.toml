@@ -1,0 +1,12 @@
+[package]
+name = "classify"
+version = "0.1.0"
+edition = "2021"
+description = """
+SeBS Classify
+"""
+
+[dependencies]
+ureq = "3.2"
+image = "0.25"
+tract-onnx = "0.21"

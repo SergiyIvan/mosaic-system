@@ -68,25 +68,48 @@ fn register_host_funcs(linker: &mut Linker<ModuleState>) -> Result<()> {
     // --- host_read_file ---
     linker.func_wrap("env", "host_read_file", |mut caller: Caller<'_, ModuleState>, path_ptr: i32, path_len: i32, out_ptr: i32, max_len: i32| -> u32 {
         let mem = match caller.get_export("memory") { Some(Extern::Memory(m)) => m, _ => return 0 };
-        let (data, _) = mem.data_and_store_mut(&mut caller);
 
-        let path_str = match std::str::from_utf8(&data[path_ptr as usize..(path_ptr + path_len) as usize]) {
-            Ok(s) => s,
-            Err(_) => return 0,
+        let path = {
+            let data = mem.data(&caller);
+            if path_ptr as usize + path_len as usize > data.len() { return 0; }
+
+            let path_bytes = &data[path_ptr as usize..(path_ptr + path_len) as usize];
+            match std::str::from_utf8(path_bytes) {
+                // Copy string to release the Wasm memory borrow.
+                Ok(s) => s.to_string(),
+                Err(_) => return 0
+            }
         };
 
-        // Copy string to avoid overlapping borrow of `data` when we write the file to memory.
-        let path = path_str.to_string();
+        let mut file = match std::fs::File::open(&path) {
+            Ok(f) => f,
+            Err(_) => return 0
+        };
 
-        match std::fs::read(&path) {
-            Ok(file_data) => {
-                if file_data.len() > max_len as usize { return 0; }
-                let out_slice = &mut data[out_ptr as usize..(out_ptr as usize + file_data.len())];
-                out_slice.copy_from_slice(&file_data);
-                file_data.len() as u32
+        let (data, _) = mem.data_and_store_mut(&mut caller);
+
+        if out_ptr as usize + max_len as usize > data.len() { return 0; }
+        let out_slice = &mut data[out_ptr as usize..(out_ptr as usize + max_len as usize)];
+
+        // Read directly from the OS file descriptor into the Wasm memory slice in chunks.
+        let mut total_bytes_read = 0;
+        loop {
+            if total_bytes_read >= max_len as usize {
+                break; // Buffer full.
             }
-            Err(_) => 0
+
+            match std::io::Read::read(&mut file, &mut out_slice[total_bytes_read..]) {
+                Ok(0) => break, // EOF reached.
+                Ok(n) => total_bytes_read += n,
+                Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(e) => {
+                    eprintln!("Failed reading file into Wasm memory: {}", e);
+                    return 0;
+                }
+            }
         }
+
+        total_bytes_read as u32
     })?;
 
     // --- host_download_to_file ---
