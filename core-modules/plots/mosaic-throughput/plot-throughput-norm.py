@@ -79,9 +79,9 @@ fig, ax1 = plt.subplots(1, 1, figsize=(10, 4))
 # Plot the stacked bars
 ax1.bar(x - width, mosaic_means_norm, yerr=mosaic_std_norm, width=width, label='Mosaic',
         edgecolor='black', alpha=0.75, hatch='//', error_kw=dict(lw=1.5, capthick=1.5), capsize=5)
-ax1.bar(x, native_means_norm, yerr=native_std_norm, width=width, label='Native',
+ax1.bar(x, native_means_norm, yerr=native_std_norm, width=width, label='Best',
         edgecolor='black', alpha=0.75, hatch='o', error_kw=dict(lw=1.5, capthick=1.5), capsize=5)
-ax1.bar(x + width, naive_means_norm, yerr=naive_std_norm, width=width, label='Naive',
+ax1.bar(x + width, naive_means_norm, yerr=naive_std_norm, width=width, label='Default',
         edgecolor='black', alpha=0.75, hatch='..', error_kw=dict(lw=1.5, capthick=1.5), capsize=5)
 
 ax1.axhline(1.0, color='red', linestyle='--', linewidth=1, zorder=0)

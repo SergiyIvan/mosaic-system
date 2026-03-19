@@ -6,12 +6,21 @@ function DIR {
 
 set -e
 
-ITERATIONS=10
+
+if [ -z "$ITERATIONS" ]; then
+    ITERATIONS=10
+fi
+
+if [ -z "$BENCHMARK_DURATION" ]; then
+    BENCHMARK_DURATION=30
+fi
+
+if [ -z "$WARMUP_ITERATIONS" ]; then
+    WARMUP_ITERATIONS=10
+fi
+
 RESULT_DIR="$(DIR)/../plots/mosaic-throughput"
 RUNNER_DIR="$(DIR)/../runner"
-
-BENCHMARK_DURATION=30
-WARMUP_ITERATIONS=10
 
 BENCHMARKS=(
     "bfs"
@@ -26,38 +35,53 @@ BENCHMARKS=(
     "classify"
 )
 
+CONFIGS=("default" "native" "x86-64-v3")
+
 declare -A BENCHMARK_HOME
 BENCHMARK_HOME[mosaic]="$(DIR)/../mosaic"
 BENCHMARK_HOME[native]="$(DIR)/../native"
-BENCHMARK_HOME[naive]="$(DIR)/../native"
 
-declare -A BUILD_COMMAND
-BUILD_COMMAND[mosaic]="build --release --quiet"
-BUILD_COMMAND[native]="build-native --quiet"
-BUILD_COMMAND[naive]="build-naive --quiet"
 
-declare -A RUN_COMMAND
-RUN_COMMAND[mosaic]="run --release --quiet"
-RUN_COMMAND[native]="run-native --quiet"
-RUN_COMMAND[naive]="run-naive --quiet"
+# ----- ARGUMENT VALIDATION -----
+if [ "$#" -eq 0 ]; then
+    echo "Error: No configuration provided."
+    echo "Usage: $0 [config1] [config2] ..."
+    echo "Available configs: ${CONFIGS[*]}"
+    exit 1
+fi
 
-declare -A RESULT_FILE
-RESULT_FILE[mosaic]="$RESULT_DIR/result-mosaic.json"
-RESULT_FILE[native]="$RESULT_DIR/result-native.json"
-RESULT_FILE[naive]="$RESULT_DIR/result-naive.json"
+# Check if every provided argument is in the allowed CONFIGS array.
+for provided_config in "$@"; do
+    is_valid=false
+    for valid_config in "${CONFIGS[@]}"; do
+        if [ "$provided_config" == "$valid_config" ]; then
+            is_valid=true
+            break
+        fi
+    done
+
+    if [ "$is_valid" = false ]; then
+        echo "Error: Unknown config mode '$provided_config' provided!"
+        echo "Allowed configs are: ${CONFIGS[*]}"
+        exit 1
+    fi
+done
+# ------------------------------
 
 
 function build_mosaic_benchmarks {
+    config=$1
     mode="mosaic"
 
-    echo "=========================================="
-    echo "Building all guests and hosts for ($mode)"
-    echo "=========================================="
+    echo "===================================================="
+    echo "Building all guests and hosts for ($mode-$config)"
+    echo "===================================================="
 
     benchmarks_home=${BENCHMARK_HOME["$mode"]}
-    build_command=${BUILD_COMMAND["$mode"]}
+    build_command="build-$config"
 
     cd "$RUNNER_DIR"
+    rm -rf Cargo.lock target
     cargo $build_command
     cd -
 
@@ -67,7 +91,7 @@ function build_mosaic_benchmarks {
 
         cd "$bench_dir/guest"
         rm -rf Cargo.lock target
-        cargo $build_command
+        cargo build --release # We always build guest in a default way as we build it to Wasm.
         cd "$bench_dir/host"
         rm -rf Cargo.lock target
         cargo $build_command
@@ -78,15 +102,16 @@ function build_mosaic_benchmarks {
 }
 
 function run_mosaic_benchmarks {
+    config=$1
     mode="mosaic"
 
-    echo "==================================="
-    echo "    Running  Benchmarks ($mode)    "
-    echo "==================================="
+    echo "============================================="
+    echo "    Running  Benchmarks ($mode-$config)    "
+    echo "============================================="
 
     benchmarks_home=${BENCHMARK_HOME["$mode"]}
-    run_command=${RUN_COMMAND["$mode"]}
-    result_file=${RESULT_FILE["$mode"]}
+    run_command="run-$config"
+    result_file="$RESULT_DIR/result-$mode-$config.json"
 
     rm -f $result_file
     echo "[" > "$result_file"
@@ -115,15 +140,16 @@ function run_mosaic_benchmarks {
     echo "]" >> "$result_file"
 }
 
-function build_benchmarks {
-    mode=$1
+function build_native_benchmarks {
+    config=$1
+    mode="native"
 
-    echo "=========================================="
-    echo "Building all guests and hosts for ($mode)"
-    echo "=========================================="
+    echo "======================================================"
+    echo "Building all guests and hosts for ($mode-$config)"
+    echo "======================================================"
 
     benchmarks_home=${BENCHMARK_HOME["$mode"]}
-    build_command=${BUILD_COMMAND["$mode"]}
+    build_command="build-$config"
 
     for bench in "${BENCHMARKS[@]}"; do
         echo "Compiling [$bench]..."
@@ -138,16 +164,17 @@ function build_benchmarks {
     echo ""
 }
 
-function run_benchmarks {
-    mode=$1
+function run_native_benchmarks {
+    config=$1
+    mode="native"
 
-    echo "==================================="
-    echo "    Running  Benchmarks ($mode)    "
-    echo "==================================="
+    echo "==============================================="
+    echo "    Running  Benchmarks ($mode-$config)    "
+    echo "==============================================="
 
     benchmarks_home=${BENCHMARK_HOME["$mode"]}
-    run_command=${RUN_COMMAND["$mode"]}
-    result_file=${RESULT_FILE["$mode"]}
+    run_command="run-$config"
+    result_file="$RESULT_DIR/result-$mode-$config.json"
 
     rm -f $result_file
     echo "[" > "$result_file"
@@ -176,13 +203,23 @@ function run_benchmarks {
     echo "]" >> "$result_file"
 }
 
+# Iterating over command line arguments containing desired configs.
+for config in "$@"; do
+    echo "=========================================="
+    echo " Processing Mode: $config"
+    echo "=========================================="
 
-build_mosaic_benchmarks
-run_mosaic_benchmarks
-build_benchmarks native
-run_benchmarks native
-build_benchmarks naive
-run_benchmarks naive
+    # ALWAYS run native for the provided config.
+    build_native_benchmarks "$config"
+    run_native_benchmarks "$config"
+
+    # SKIP Mosaic execution for "default".
+    if [ "$config" != "default" ]; then
+        build_mosaic_benchmarks "$config"
+        run_mosaic_benchmarks "$config"
+    fi
+done
+
 
 echo "=========================================="
 echo " All benchmarks finished! Check $RESULT_DIR "
