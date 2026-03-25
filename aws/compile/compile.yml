@@ -1,0 +1,57 @@
+---
+- name: Compile and Upload Artifacts
+  hosts: all
+  become: yes # Run as root for installations.
+  strategy: free
+  vars:
+    repo_url: "github.com/SergiyIvan/mosaic-system.git"
+    repo_dir: "/home/ubuntu/mosaic-system"
+
+  tasks:
+    - name: Install dependencies (including zip and awscli)
+      apt:
+        name: ['git', 'build-essential', 'curl', 'zip', 'awscli']
+        state: present
+        update_cache: yes
+
+- name: Setup User Space and Compile
+  hosts: all
+  become: no
+  strategy: free
+  vars:
+    repo_dir: "/home/ubuntu/mosaic-system"
+    # Passed in via the wrapper script.
+    s3_bucket: "{{ target_bucket }}"
+
+  tasks:
+    - name: Install Rust toolchain
+      shell: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+      args:
+        creates: "/home/ubuntu/.cargo/bin/rustc"
+
+    - name: Add WebAssembly target
+      shell: "source /home/ubuntu/.cargo/env && rustup target add wasm32-wasip1"
+      args:
+        executable: /bin/bash
+
+    - name: Clone private repository
+      git:
+        repo: "https://{{ github_token }}@{{ repo_url }}"
+        dest: "{{ repo_dir }}"
+        force: yes
+
+    - name: Execute native compilation script
+      shell: |
+        source /home/ubuntu/.cargo/env
+        bash compile-native.sh "{{ configs }}" "{{ s3_bucket }}" "{{ inventory_hostname }}"
+      args:
+        chdir: "{{ repo_dir }}/aws/compile"
+        executable: /bin/bash
+
+    - name: Execute mosaic compilation script
+      shell: |
+        source /home/ubuntu/.cargo/env
+        bash compile-mosaic.sh "{{ configs }}" "{{ s3_bucket }}" "{{ inventory_hostname }}"
+      args:
+        chdir: "{{ repo_dir }}/aws/compile"
+        executable: /bin/bash

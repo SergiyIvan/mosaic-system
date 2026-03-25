@@ -1,0 +1,77 @@
+---
+- name: Run Mosaic Benchmarks
+  hosts: all
+  become: yes # Run as root for installations.
+  strategy: free
+  vars:
+    repo_url: "github.com/SergiyIvan/mosaic-system.git"
+    repo_dir: "/home/ubuntu/mosaic-system"
+
+  tasks:
+    - name: Update apt and install dependencies
+      apt:
+        name: ['git', 'docker.io', 'build-essential', 'curl']
+        state: present
+        update_cache: yes
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    # Reset connection so the docker group change takes effect for the ubuntu user.
+    - name: Reset ssh connection to allow user changes to affect docker
+      meta: reset_connection
+
+- name: Setup User Space and Run Benchmarks
+  hosts: all
+  become: no # Run as the normal 'ubuntu' user from here on.
+  strategy: free
+  vars:
+    repo_dir: "/home/ubuntu/mosaic-system"
+
+  tasks:
+    - name: Install Rust toolchain
+      shell: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+      args:
+        creates: "/home/ubuntu/.cargo/bin/rustc"
+
+    - name: Add WebAssembly target
+      shell: "source /home/ubuntu/.cargo/env && rustup target add wasm32-wasip1"
+      args:
+        executable: /bin/bash
+
+    - name: Clone private repository
+      git:
+        repo: "https://{{ github_token }}@{{ repo_url }}"
+        dest: "{{ repo_dir }}"
+        force: yes
+
+    - name: Start Docker Webserver
+      shell: "./start-webserver.sh"
+      args:
+        chdir: "{{ repo_dir }}/core-modules/scripts/data"
+
+    - name: Run benchmarking script
+      shell: "source /home/ubuntu/.cargo/env && bash benchmark-throughput.sh default native x86-64-v3"
+      args:
+        chdir: "{{ repo_dir }}/core-modules/scripts"
+        executable: /bin/bash
+      environment:
+        ITERATIONS: "1"
+        BENCHMARK_DURATION: "10"
+        WARMUP_ITERATIONS: "5"
+
+    - name: Find all JSON result files
+      find:
+        paths: "{{ repo_dir }}/core-modules/plots/mosaic-throughput"
+        patterns: "*.json"
+      register: json_files
+
+    - name: Fetch JSON results back to local machine
+      fetch:
+        src: "{{ item.path }}"
+        dest: "./results/{{ inventory_hostname }}/"
+        flat: yes
+      loop: "{{ json_files.files }}"

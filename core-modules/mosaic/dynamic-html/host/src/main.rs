@@ -145,11 +145,19 @@ fn register_host_funcs(linker: &mut Linker<ModuleState>) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let wasm_path = "../guest/target/wasm32-wasip1/release/guest.wasm";
+    let benchmark_name = "dynamic-html";
 
     let args: Vec<String> = std::env::args().collect();
     let duration_seconds = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(30);
     let warmup_iterations = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(5);
+    let wasm_path = args
+        .get(3)
+        .cloned()
+        .unwrap_or_else(|| {
+            // For cdylib, rustc replaces '-' with '_'. We replace it back here for the default path.
+            let safe_filename = benchmark_name.replace("-", "_");
+            format!("../guest/target/wasm32-wasip1/release/{}.wasm", safe_filename)
+        });
 
-    runner::benchmark_wasm("dynamic-html", wasm_path, duration_seconds, warmup_iterations, register_host_funcs)
+    runner::benchmark_wasm(benchmark_name, &wasm_path, duration_seconds, warmup_iterations, register_host_funcs)
 }
