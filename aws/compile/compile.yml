@@ -10,7 +10,7 @@
   tasks:
     - name: Install dependencies (including zip and awscli)
       apt:
-        name: ['git', 'build-essential', 'curl', 'zip', 'awscli']
+        name: ['git', 'build-essential', 'curl', 'zip', 'awscli', 'nasm']
         state: present
         update_cache: yes
 
@@ -52,6 +52,13 @@
       shell: |
         source /home/ubuntu/.cargo/env
         bash compile-mosaic.sh "{{ configs }}" "{{ s3_bucket }}" "{{ inventory_hostname }}"
+      args:
+        chdir: "{{ repo_dir }}/aws/compile"
+        executable: /bin/bash
+
+    - name: Execute FFmpeg compilation script
+      shell: |
+        bash compile-ffmpeg.sh "{{ configs }}" "{{ s3_bucket }}" "{{ inventory_hostname }}"
       args:
         chdir: "{{ repo_dir }}/aws/compile"
         executable: /bin/bash

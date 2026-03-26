@@ -51,7 +51,7 @@
         executable: /bin/bash
       environment:
         ITERATIONS: "10"
-        BENCHMARK_DURATION: "30"
+        BENCHMARK_DURATION: "60"
         WARMUP_ITERATIONS: "10"
 
     - name: Find all JSON result files
