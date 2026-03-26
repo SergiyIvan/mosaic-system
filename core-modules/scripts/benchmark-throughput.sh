@@ -6,18 +6,9 @@ function DIR {
 
 set -e
 
-
-if [ -z "$ITERATIONS" ]; then
-    ITERATIONS=10
-fi
-
-if [ -z "$BENCHMARK_DURATION" ]; then
-    BENCHMARK_DURATION=30
-fi
-
-if [ -z "$WARMUP_ITERATIONS" ]; then
-    WARMUP_ITERATIONS=10
-fi
+if [ -z "$ITERATIONS" ]; then ITERATIONS=10; fi
+if [ -z "$BENCHMARK_DURATION" ]; then BENCHMARK_DURATION=30; fi
+if [ -z "$WARMUP_ITERATIONS" ]; then WARMUP_ITERATIONS=10; fi
 
 RESULT_DIR="$(DIR)/../plots/mosaic-throughput"
 RUNNER_DIR="$(DIR)/../runner"

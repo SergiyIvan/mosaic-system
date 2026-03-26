@@ -10,7 +10,7 @@
   tasks:
     - name: Update apt and install dependencies
       apt:
-        name: ['git', 'docker.io', 'build-essential', 'curl']
+        name: ['git', 'docker.io', 'curl', 'unzip', 'awscli']
         state: present
         update_cache: yes
 
@@ -30,18 +30,9 @@
   strategy: free
   vars:
     repo_dir: "/home/ubuntu/mosaic-system"
+    s3_bucket: "{{ s3_bucket }}"
 
   tasks:
-    - name: Install Rust toolchain
-      shell: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
-      args:
-        creates: "/home/ubuntu/.cargo/bin/rustc"
-
-    - name: Add WebAssembly target
-      shell: "source /home/ubuntu/.cargo/env && rustup target add wasm32-wasip1"
-      args:
-        executable: /bin/bash
-
     - name: Clone private repository
       git:
         repo: "https://{{ github_token }}@{{ repo_url }}"
@@ -54,14 +45,14 @@
         chdir: "{{ repo_dir }}/core-modules/scripts/data"
 
     - name: Run benchmarking script
-      shell: "source /home/ubuntu/.cargo/env && bash benchmark-throughput.sh default native x86-64-v3"
+      shell: "bash benchmark-throughput-aws.sh '{{ configs }}' '{{ s3_bucket }}' '{{ inventory_hostname }}'"
       args:
         chdir: "{{ repo_dir }}/core-modules/scripts"
         executable: /bin/bash
       environment:
-        ITERATIONS: "1"
-        BENCHMARK_DURATION: "10"
-        WARMUP_ITERATIONS: "5"
+        ITERATIONS: "10"
+        BENCHMARK_DURATION: "30"
+        WARMUP_ITERATIONS: "10"
 
     - name: Find all JSON result files
       find:

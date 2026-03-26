@@ -4,7 +4,7 @@ provider "aws" {
 
 
 # ==========================================
-# DEDICATED NETWORKING (VPC & Subnet)
+# NETWORKING (VPC & Subnet)
 # ==========================================
 resource "aws_vpc" "bench_vpc" {
   cidr_block           = "10.0.0.0/16"
@@ -62,7 +62,7 @@ resource "local_file" "private_key" {
 
 
 # ==========================================
-# SECURITY GROUP & AMI
+# SECURITY GROUP
 # ==========================================
 resource "aws_security_group" "bench_sg" {
   name   = "mosaic_bench_sg"
@@ -82,12 +82,51 @@ resource "aws_security_group" "bench_sg" {
   }
 }
 
-data "aws_ami" "ubuntu" {
+
+# ==========================================
+# S3 BUCKET & IAM INSTANCE PROFILE
+# ==========================================
+resource "aws_iam_role" "ec2_s3_role" {
+  name = "mosaic_bench_s3_role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "s3_full_access" {
+  role       = aws_iam_role.ec2_s3_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}
+
+resource "aws_iam_instance_profile" "ec2_s3_profile" {
+  name = "mosaic_bench_s3_profile"
+  role = aws_iam_role.ec2_s3_role.name
+}
+
+
+# ==========================================
+# AMIs (x86 AND ARM64)
+# ==========================================
+data "aws_ami" "ubuntu_x86" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical.
+  owners      = ["099720109477"]
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+}
+
+data "aws_ami" "ubuntu_arm" {
+  most_recent = true
+  owners      = ["099720109477"]
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-arm64-server-*"]
   }
 }
 
@@ -96,12 +135,13 @@ data "aws_ami" "ubuntu" {
 # INSTANCES
 # ==========================================
 resource "aws_instance" "intel_c7i" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "c7i.xlarge"
-  subnet_id     = aws_subnet.bench_subnet.id
-  key_name      = aws_key_pair.generated_key.key_name
+  ami                  = data.aws_ami.ubuntu_x86.id
+  instance_type        = "c7i.xlarge"
+  subnet_id            = aws_subnet.bench_subnet.id
+  key_name             = aws_key_pair.generated_key.key_name
   vpc_security_group_ids = [aws_security_group.bench_sg.id]
-  tags = { Name = "Mosaic-Intel-C7i" }
+  iam_instance_profile = aws_iam_instance_profile.ec2_s3_profile.name
+  tags = { Name = "Mosaic-Bench-Intel-C7i" }
 
   # Storage.
   root_block_device {
@@ -111,12 +151,13 @@ resource "aws_instance" "intel_c7i" {
 }
 
 resource "aws_instance" "amd_c7a" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "c7a.xlarge"
-  subnet_id     = aws_subnet.bench_subnet.id
-  key_name      = aws_key_pair.generated_key.key_name
+  ami                  = data.aws_ami.ubuntu_x86.id
+  instance_type        = "c7a.xlarge"
+  subnet_id            = aws_subnet.bench_subnet.id
+  key_name             = aws_key_pair.generated_key.key_name
   vpc_security_group_ids = [aws_security_group.bench_sg.id]
-  tags = { Name = "Mosaic-AMD-C7a" }
+  iam_instance_profile = aws_iam_instance_profile.ec2_s3_profile.name
+  tags = { Name = "Mosaic-Bench-AMD-C7a" }
 
   # Storage.
   root_block_device {
@@ -125,6 +166,23 @@ resource "aws_instance" "amd_c7a" {
   }
 }
 
+resource "aws_instance" "graviton_c7g" {
+  ami                  = data.aws_ami.ubuntu_arm.id
+  instance_type        = "c7g.xlarge"
+  subnet_id            = aws_subnet.bench_subnet.id
+  key_name             = aws_key_pair.generated_key.key_name
+  vpc_security_group_ids = [aws_security_group.bench_sg.id]
+  iam_instance_profile = aws_iam_instance_profile.ec2_s3_profile.name
+  tags = { Name = "Mosaic-Bench-Graviton-C7g" }
+
+  # Storage.
+  root_block_device {
+    volume_size = 40
+    volume_type = "gp3"
+  }
+}
+
+
 # ==========================================
 # OUTPUT INVENTORY
 # ==========================================
@@ -132,10 +190,13 @@ resource "aws_instance" "amd_c7a" {
 resource "local_file" "ansible_inventory" {
   content = <<-DOC
     [intel]
-    intel_machine ansible_host=${aws_instance.intel_c7i.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=./mosaic-bench-key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+    c7i ansible_host=${aws_instance.intel_c7i.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=./mosaic-bench-key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no' configs="default native x86-64-v3"
 
     [amd]
-    amd_machine ansible_host=${aws_instance.amd_c7a.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=./mosaic-bench-key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+    c7a ansible_host=${aws_instance.amd_c7a.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=./mosaic-bench-key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no' configs="default native x86-64-v3"
+
+    [graviton]
+    c7g ansible_host=${aws_instance.graviton_c7g.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=./mosaic-bench-key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no' configs="default native neoverse-v1"
     DOC
   filename = "${path.module}/inventory.ini"
 }
