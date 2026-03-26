@@ -38,7 +38,7 @@ sleep 30
 echo "[2/4] Provisioning and Benchmarking (Ansible)..."
 # Passing the GitHub token as an extra variable to Ansible.
 ansible-playbook -i inventory.ini bench.yml \
-    --extra-vars "github_token=$GITHUB_TOKEN repo_url=github.com/SergiyIvan/mosaic-system.git s3_bucket=$TARGET_BUCKET"
+    --extra-vars "github_token=$GITHUB_TOKEN repo_url=github.com/SergiyIvan/mosaic-system.git s3_bucket=$S3_BUCKET"
 
 echo "[3/4] Benchmarks complete! Results downloaded to $RESULT_DIR directory."
 
