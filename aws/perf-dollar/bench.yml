@@ -24,13 +24,14 @@
     - name: Reset ssh connection to allow user changes to affect docker
       meta: reset_connection
 
-- name: Setup User Space and Run Benchmarks
+- name: Setup user space and run benchmarks
   hosts: all
   become: no # Run as the normal 'ubuntu' user from here on.
   strategy: free
   vars:
     repo_dir: "/home/ubuntu/mosaic-system"
     s3_bucket: "{{ s3_bucket }}"
+    target_benchmarks: "{{ target_benchmarks }}"
 
   tasks:
     - name: Clone private repository
@@ -39,13 +40,13 @@
         dest: "{{ repo_dir }}"
         force: yes
 
-    - name: Start Docker Webserver
+    - name: Start Docker webserver
       shell: "./start-webserver.sh"
       args:
         chdir: "{{ repo_dir }}/core-modules/scripts/data"
 
     - name: Run benchmarking script
-      shell: "bash benchmark-throughput-aws.sh '{{ configs }}' '{{ s3_bucket }}' '{{ inventory_hostname }}'"
+      shell: "bash benchmark-throughput-aws.sh '{{ configs }}' '{{ s3_bucket }}' '{{ inventory_hostname }}' '{{ target_benchmarks }}'"
       args:
         chdir: "{{ repo_dir }}/core-modules/scripts"
         executable: /bin/bash

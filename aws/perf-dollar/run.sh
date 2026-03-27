@@ -16,6 +16,11 @@ if [ -z "$GITHUB_TOKEN" ]; then
     exit 1
 fi
 
+# ==========================================
+# Leave empty ("") to run all benchmarks.
+TARGET_BENCHMARKS=""
+# ==========================================
+
 # Extract the dynamically generated S3 bucket name from Terraform output.
 cd $(DIR)/../setup-s3
 S3_BUCKET=$(terraform output -raw s3_bucket_name)
@@ -38,7 +43,7 @@ sleep 30
 echo "[2/4] Provisioning and Benchmarking (Ansible)..."
 # Passing the GitHub token as an extra variable to Ansible.
 ansible-playbook -i inventory.ini bench.yml \
-    --extra-vars "github_token=$GITHUB_TOKEN repo_url=github.com/SergiyIvan/mosaic-system.git s3_bucket=$S3_BUCKET"
+    --extra-vars "github_token=$GITHUB_TOKEN repo_url=github.com/SergiyIvan/mosaic-system.git s3_bucket=$S3_BUCKET target_benchmarks='$TARGET_BENCHMARKS'"
 
 echo "[3/4] Benchmarks complete! Results downloaded to $RESULT_DIR directory."
 

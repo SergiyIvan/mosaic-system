@@ -13,6 +13,7 @@ if [ -z "$WARMUP_ITERATIONS" ]; then WARMUP_ITERATIONS=10; fi
 CONFIGS=$1
 S3_BUCKET=$2
 ARCH_FOLDER=$3
+CUSTOM_BENCHMARKS=$4  # Optional parameter.
 
 RESULT_DIR="$(DIR)/../plots/mosaic-throughput"
 ARTIFACTS_DIR="$(DIR)/../artifacts"
@@ -35,6 +36,11 @@ BENCHMARKS=(
     "uploader"
     "classify"
 )
+
+if [ -n "$CUSTOM_BENCHMARKS" ]; then
+    # Custom subset of benchmarks provided, overwriting the BENCHMARKS array.
+    read -r -a BENCHMARKS <<< "$CUSTOM_BENCHMARKS"
+fi
 
 
 function ensure_correct_ffmpeg {
