@@ -4,13 +4,24 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
 cd $DIR
 
+MACHINE_ARCH=$(uname -m)
+if [ "$MACHINE_ARCH" == "x86_64" ]; then
+    FFMPEG_ARCH="amd64"
+elif [ "$MACHINE_ARCH" == "aarch64" ]; then
+    FFMPEG_ARCH="arm64"
+else
+    echo "Error: Unsupported architecture - $MACHINE_ARCH"
+    exit 1
+fi
+
+
 if [ ! -f ffmpeg ];
 then
-    wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
-    tar -xf ffmpeg-release-amd64-static.tar.xz
-    mv ffmpeg-*-amd64-static/ffmpeg .
-    rm -r ffmpeg-*-amd64-static
-    rm ffmpeg-release-amd64-static.tar.xz
+    wget "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-$FFMPEG_ARCH-static.tar.xz"
+    tar -xf "ffmpeg-release-$FFMPEG_ARCH-static.tar.xz"
+    mv ffmpeg-*-$FFMPEG_ARCH-static/ffmpeg .
+    rm -r ffmpeg-*-$FFMPEG_ARCH-static
+    rm "ffmpeg-release-$FFMPEG_ARCH-static.tar.xz"
     # Installing into /tmp as video-processing benchmark expects the binary to be there.
     cp ffmpeg /tmp/ffmpeg
 fi
