@@ -24,7 +24,16 @@ mkdir -p "$RESULT_DIR"
 mkdir -p "$ARTIFACTS_DIR"
 
 BENCHMARKS=(
+    "bfs"
+    "compression"
+    "dna"
+    "dynamic-html"
+    "mst"
+    "pagerank"
+    "thumbnailer"
     "video-processing"
+    "uploader"
+    "classify"
 )
 
 
