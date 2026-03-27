@@ -86,15 +86,14 @@ ax1.bar(x + width, naive_means_norm, yerr=naive_std_norm, width=width, label='De
 
 ax1.axhline(1.0, color='red', linestyle='--', linewidth=1, zorder=0)
 
-ax1.set_ylabel('Throughput (Relative to Naive)')
+ax1.set_ylabel('Throughput (Relative to Default)')
 ax1.set_title('Normalized Throughput')
 ax1.set_xticks(x)
 ax1.set_xticklabels(target_benchmarks, rotation=35, ha="right")
+ax1.set_ylim(ymin=0)
 
 ax1.grid(axis='y', linestyle='--', linewidth=0.25)
 ax1.legend(loc='upper left', fontsize='small', ncol=3)
-
-ax1.set_ylim(ymin=0)
 
 output_file = "throughput-norm.png"
 plt.savefig(output_file, dpi=300, bbox_inches='tight')
