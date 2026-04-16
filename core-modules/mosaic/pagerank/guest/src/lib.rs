@@ -5,7 +5,8 @@ unsafe extern "C" {
     // Runs PageRank. edges_len is number of u32s. pr_len is number of nodes (f32s).
     fn host_pagerank(
         edges_ptr: *const u32, edges_len: u32,
-        pr_ptr: *mut f32, pr_len: u32
+        pr_ptr: *mut f32, pr_len: u32,
+        iterations: u32
     ) -> u32;
 }
 
@@ -13,6 +14,7 @@ unsafe extern "C" {
 pub extern "C" fn run() -> u32 {
     let size = 10_000; // "small" config from SeBS.
     let m = 10;        // Edges per node in Barabasi-Albert.
+    let iterations = 20;
 
     // Generating inputs.
     // Creating the Barabási-Albert graph.
@@ -29,13 +31,14 @@ pub extern "C" fn run() -> u32 {
 
     // Preferential attachment.
     let mut rng = rand::thread_rng();
+    let mut targets = Vec::with_capacity(m);
     for i in m..size {
-        let mut targets = Vec::with_capacity(m);
+        targets.clear();
         while targets.len() < m {
             let target = repeated_nodes[rng.gen_range(0..repeated_nodes.len())];
             if !targets.contains(&target) { targets.push(target); }
         }
-        for target in targets {
+        for &target in &targets {
             edges.push(i as u32); edges.push(target);
             repeated_nodes.push(i as u32); repeated_nodes.push(target);
         }
@@ -48,7 +51,8 @@ pub extern "C" fn run() -> u32 {
     let success = unsafe {
         host_pagerank(
             edges.as_ptr(), edges.len() as u32,
-            pr_scores.as_mut_ptr(), size as u32
+            pr_scores.as_mut_ptr(), size as u32,
+            iterations
         )
     };
 

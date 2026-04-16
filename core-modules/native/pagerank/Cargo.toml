@@ -8,3 +8,4 @@ SeBS PageRank
 
 [dependencies]
 rand = "0.8"
+pagerank-lib = { path = "../../shared/pagerank-lib" }

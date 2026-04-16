@@ -1,47 +1,12 @@
 use rand::Rng;
 use std::time::{Duration, Instant};
+use pagerank_lib::pagerank;
 
-
-fn pagerank(edges: &[u32], pr_slice: &mut [f32]) -> u32 {
-    let num_nodes = pr_slice.len();
-    let mut out_degree = vec![0.0f32; num_nodes];
-    let mut in_edges = vec![Vec::<u32>::new(); num_nodes];
-
-    // 1. Build the Adjacency List (CSR format proxy).
-    for chunk in edges.chunks_exact(2) {
-        let u = chunk[0] as usize;
-        let v = chunk[1] as usize;
-        out_degree[u] += 1.0;
-        in_edges[v].push(u as u32);
-    }
-
-    // 2. Initialize PageRank.
-    for p in pr_slice.iter_mut() {
-        *p = 1.0 / (num_nodes as f32);
-    }
-
-    let damping = 0.85;
-    let mut next_pr = vec![0.0f32; num_nodes];
-
-    // 3. PageRank loop (20 iterations) - highly vectorizable loop structure (by the compiler).
-    for _ in 0..20 {
-        let base_pr = (1.0 - damping) / (num_nodes as f32);
-        for i in 0..num_nodes {
-            let mut sum = 0.0;
-            for &in_node in &in_edges[i] {
-                sum += pr_slice[in_node as usize] / out_degree[in_node as usize];
-            }
-            next_pr[i] = base_pr + damping * sum;
-        }
-        pr_slice.copy_from_slice(&next_pr);
-    }
-
-    1 // Success.
-}
 
 fn run() -> u32 {
     let size = 10_000; // "small" config from SeBS.
     let m = 10;        // Edges per node in Barabasi-Albert.
+    let iterations = 20;
 
     // Creating the Barabási-Albert graph.
     let mut edges = Vec::with_capacity(size * m * 2);
@@ -57,13 +22,14 @@ fn run() -> u32 {
 
     // Preferential attachment.
     let mut rng = rand::thread_rng();
+    let mut targets = Vec::with_capacity(m);
     for i in m..size {
-        let mut targets = Vec::with_capacity(m);
+        targets.clear();
         while targets.len() < m {
             let target = repeated_nodes[rng.gen_range(0..repeated_nodes.len())];
             if !targets.contains(&target) { targets.push(target); }
         }
-        for target in targets {
+        for &target in &targets {
             edges.push(i as u32); edges.push(target);
             repeated_nodes.push(i as u32); repeated_nodes.push(target);
         }
@@ -73,7 +39,7 @@ fn run() -> u32 {
     let mut pr_scores = vec![0.0f32; size];
 
     // Call the native function directly
-    let success = pagerank(&edges, &mut pr_scores);
+    let success = pagerank(&edges, &mut pr_scores, iterations);
 
     if success != 1 {
         eprintln!("PageRank failed: Function returned error!");
