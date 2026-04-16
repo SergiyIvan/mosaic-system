@@ -1,36 +1,8 @@
 use anyhow::Result;
 use wasmtime::{Caller, Extern, Linker};
 use runner::ModuleState;
-
 use std::io::Read;
-use serde::Serialize;
-
-
-// Zero-copy writer.
-struct WasmBufferWriter<'a> {
-    buffer: &'a mut [u8],
-    pos: usize,
-}
-
-impl<'a> std::io::Write for WasmBufferWriter<'a> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let len = buf.len();
-        if self.pos + len > self.buffer.len() {
-            return Err(std::io::Error::new(std::io::ErrorKind::WriteZero, "Wasm buffer overflow"));
-        }
-        self.buffer[self.pos..self.pos + len].copy_from_slice(buf);
-        self.pos += len;
-        Ok(len)
-    }
-    fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
-}
-
-// Data structure to match the Python Squiggle JSON output.
-#[derive(Serialize)]
-struct SquiggleOutput {
-    x: Vec<f64>,
-    y: Vec<f64>,
-}
+use squiggle_lib::squiggle_transform;
 
 
 fn register_host_funcs(linker: &mut Linker<ModuleState>) -> Result<()> {
@@ -81,8 +53,8 @@ fn register_host_funcs(linker: &mut Linker<ModuleState>) -> Result<()> {
         total_bytes_read as u32
     })?;
 
-    // --- host_squiggle ---
-    linker.func_wrap("env", "host_squiggle",
+    // --- host_squiggle_transform ---
+    linker.func_wrap("env", "host_squiggle_transform",
         |mut caller: Caller<'_, ModuleState>,
          in_ptr: i32, in_len: i32,
          out_ptr: i32, max_len: i32| -> u32 {
@@ -98,65 +70,12 @@ fn register_host_funcs(linker: &mut Linker<ModuleState>) -> Result<()> {
 
         let bytes_written = unsafe {
             let in_slice = std::slice::from_raw_parts(base_ptr.add(in_ptr as usize), in_len as usize);
-            let fasta_str = std::str::from_utf8(in_slice).unwrap_or("");
-
             let out_slice = std::slice::from_raw_parts_mut(base_ptr.add(out_ptr as usize), max_len as usize);
-            let mut writer = WasmBufferWriter { buffer: out_slice, pos: 0 };
 
-            // Pre-allocate to avoid slow vector resizing during computation.
-            // 2 points per nucleotide + 1 start point.
-            let estimated_capacity = fasta_str.len() * 2;
-            let mut x_coords = Vec::with_capacity(estimated_capacity);
-            let mut y_coords = Vec::with_capacity(estimated_capacity);
-
-            let mut cur_x = 0.0;
-            let mut cur_y = 0.0;
-
-            x_coords.push(cur_x);
-            y_coords.push(cur_y);
-
-            // Squiggle algorithm loop.
-            for line in fasta_str.lines() {
-                // Ignore FASTA headers.
-                if line.starts_with('>') { continue; }
-
-                for b in line.bytes() {
-                    match b {
-                        b'A' | b'a' => {
-                            x_coords.push(cur_x + 0.5); y_coords.push(cur_y + 0.5);
-                            cur_x += 1.0;               // cur_y += 0.0;
-                            x_coords.push(cur_x);       y_coords.push(cur_y);
-                        }
-                        b'C' | b'c' => {
-                            x_coords.push(cur_x + 0.5); y_coords.push(cur_y - 0.5);
-                            cur_x += 1.0;               // cur_y += 0.0;
-                            x_coords.push(cur_x);       y_coords.push(cur_y);
-                        }
-                        b'G' | b'g' => {
-                            x_coords.push(cur_x + 0.5); y_coords.push(cur_y + 0.5);
-                            cur_x += 1.0;               cur_y += 1.0;
-                            x_coords.push(cur_x);       y_coords.push(cur_y);
-                        }
-                        b'T' | b't' | b'U' | b'u' => {
-                            x_coords.push(cur_x + 0.5); y_coords.push(cur_y - 0.5);
-                            cur_x += 1.0;               cur_y -= 1.0;
-                            x_coords.push(cur_x);       y_coords.push(cur_y);
-                        }
-                        _ => {} // Ignore whitespace, 'N', or unrecognized characters.
-                    }
-                }
-            }
-
-            let result = SquiggleOutput { x: x_coords, y: y_coords };
-
-            // Serialize directly to the Wasm Memory for zero-copy payload generation.
-            match serde_json::to_writer(&mut writer, &result) {
-                Ok(_) => writer.pos as u32,
-                Err(_) => 0,
-            }
+            squiggle_transform(in_slice, out_slice)
         };
 
-        bytes_written
+        bytes_written as u32
     })?;
 
     Ok(())

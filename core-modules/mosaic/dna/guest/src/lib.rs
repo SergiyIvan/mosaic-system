@@ -3,7 +3,7 @@ unsafe extern "C" {
     fn host_download(url_ptr: *const u8, url_len: u32, out_ptr: *mut u8, max_len: u32) -> u32;
 
     // Transforms FASTA data into Squiggle JSON. Returns the size of the generated JSON in bytes, or 0 on error.
-    fn host_squiggle(
+    fn host_squiggle_transform(
         in_ptr: *const u8, in_len: u32,
         out_ptr: *mut u8, max_len: u32
     ) -> u32;
@@ -35,7 +35,7 @@ pub extern "C" fn run() -> u32 {
     let mut json_buf = vec![0u8; MAX_JSON_SIZE];
 
     let json_size = unsafe {
-        host_squiggle(
+        host_squiggle_transform(
             fasta_buf.as_ptr(), fasta_size,
             json_buf.as_mut_ptr(), MAX_JSON_SIZE as u32
         )
