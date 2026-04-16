@@ -8,3 +8,4 @@ SeBS MST
 
 [dependencies]
 rand = "0.8"
+petgraph = "0.8.3"

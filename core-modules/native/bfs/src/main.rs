@@ -1,47 +1,35 @@
+use petgraph::graph::UnGraph;
+use petgraph::visit::Bfs;
 use rand::Rng;
-use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
+fn bfs(edges: &[u32], out_order: &mut [u32], num_nodes: usize, start_node: usize) -> u32 {
+    let mut graph = UnGraph::<(), ()>::with_capacity(num_nodes, edges.len() / 2);
+    let mut nodes = Vec::with_capacity(num_nodes);
 
-fn bfs(edges: &[u32], out_order: &mut [u32], num_nodes: u32, start_node: u32) -> u32 {
-    let num_nodes_usize = num_nodes as usize;
+    for _ in 0..num_nodes {
+        nodes.push(graph.add_node(()));
+    }
 
-    // 1. Build adjacency list (undirected).
-    let mut adj = vec![Vec::new(); num_nodes_usize];
     for chunk in edges.chunks_exact(2) {
         let u = chunk[0] as usize;
         let v = chunk[1] as usize;
-        adj[u].push(v as u32);
-        adj[v].push(u as u32);
+        graph.add_edge(nodes[u], nodes[v], ());
     }
 
-    // 2. BFS initialization.
-    let mut visited = vec![false; num_nodes_usize];
-    let mut queue = VecDeque::with_capacity(num_nodes_usize);
+    let mut bfs = Bfs::new(&graph, nodes[start_node]);
     let mut count = 0;
 
-    if (start_node as usize) < num_nodes_usize {
-        visited[start_node as usize] = true;
-        queue.push_back(start_node as u32);
-
-        // 3. Traversal loop.
-        while let Some(node) = queue.pop_front() {
-            if count < out_order.len() {
-                out_order[count] = node;
-            }
-            count += 1;
-
-            for &neighbor in &adj[node as usize] {
-                if !visited[neighbor as usize] {
-                    visited[neighbor as usize] = true;
-                    queue.push_back(neighbor);
-                }
-            }
+    while let Some(nx) = bfs.next(&graph) {
+        if count < out_order.len() {
+            out_order[count] = nx.index() as u32;
         }
+        count += 1;
     }
 
     count as u32
 }
+
 
 fn run() -> u32 {
     let size = 100_000; // "large" config from SeBS.
@@ -61,25 +49,24 @@ fn run() -> u32 {
 
     // Preferential attachment.
     let mut rng = rand::thread_rng();
+    let mut targets = Vec::with_capacity(m);
     for i in m..size {
-        let mut targets = Vec::with_capacity(m);
+        targets.clear();
         while targets.len() < m {
             let target = repeated_nodes[rng.gen_range(0..repeated_nodes.len())];
             if !targets.contains(&target) { targets.push(target); }
         }
-        for target in targets {
+        for &target in &targets {
             edges.push(i as u32); edges.push(target);
             repeated_nodes.push(i as u32); repeated_nodes.push(target);
         }
     }
 
-    // Output array to store the order of visited nodes.
+    // BFS traversal.
     let mut bfs_order = vec![0u32; size];
+    let count = bfs(&edges, &mut bfs_order, size, 0);
 
-    // Call the native function directly using slices
-    let visited_count = bfs(&edges, &mut bfs_order, size as u32, 0);
-
-    if visited_count != size as u32 {
+    if count as u32 != size as u32 {
         eprintln!("BFS failed or incomplete!");
         return 1;
     }

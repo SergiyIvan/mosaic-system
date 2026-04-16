@@ -1,62 +1,34 @@
+use petgraph::algo::min_spanning_tree;
+use petgraph::data::Element;
+use petgraph::graph::UnGraph;
 use rand::Rng;
 use std::time::{Duration, Instant};
 
 
-struct UnionFind {
-    parent: Vec<u32>,
-}
+fn mst(edges: &[u32], out_edges: &mut [u32], num_nodes: usize) -> u32 {
+    let mut graph = UnGraph::<(), ()>::with_capacity(num_nodes, edges.len() / 2);
+    let mut nodes = Vec::with_capacity(num_nodes);
 
-impl UnionFind {
-    fn new(size: usize) -> Self {
-        UnionFind {
-            parent: (0..size as u32).collect(),
-        }
+    for _ in 0..num_nodes {
+        nodes.push(graph.add_node(()));
     }
 
-    // Find with path compression (flattens the tree for O(1) lookups).
-    fn find(&mut self, i: u32) -> u32 {
-        if self.parent[i as usize] == i {
-            i
-        } else {
-            let root = self.find(self.parent[i as usize]);
-            self.parent[i as usize] = root;
-            root
-        }
+    for chunk in edges.chunks_exact(2) {
+        let u = chunk[0] as usize;
+        let v = chunk[1] as usize;
+        graph.add_edge(nodes[u], nodes[v], ());
     }
 
-    // Union returns true if the components were merged (edge added to MST).
-    fn union(&mut self, i: u32, j: u32) -> bool {
-        let root_i = self.find(i);
-        let root_j = self.find(j);
-
-        if root_i != root_j {
-            self.parent[root_i as usize] = root_j;
-            true
-        } else {
-            false
-        }
-    }
-}
-
-
-fn mst(edges: &[u32], out_edges: &mut [u32], num_nodes: u32) -> u32 {
-    let mut uf = UnionFind::new(num_nodes as usize);
+    let mst_result = min_spanning_tree(&graph);
     let mut mst_edge_count = 0;
 
-    // Iterate over the edges and build the spanning tree.
-    for chunk in edges.chunks_exact(2) {
-        let u = chunk[0];
-        let v = chunk[1];
-
-        // If the edge connects two different components, add it to the MST.
-        if uf.union(u, v) {
-            out_edges[mst_edge_count * 2] = u;
-            out_edges[mst_edge_count * 2 + 1] = v;
-            mst_edge_count += 1;
-
-            // A spanning tree is complete when it has exactly (N - 1) edges.
-            if mst_edge_count == (num_nodes as usize - 1) {
-                break;
+    for element in mst_result {
+        if let Element::Edge { source, target, .. } = element {
+            // Write pairs (source, target) into the flat output array.
+            if (mst_edge_count * 2) + 1 < out_edges.len() {
+                out_edges[mst_edge_count * 2] = source as u32;
+                out_edges[mst_edge_count * 2 + 1] = target as u32;
+                mst_edge_count += 1;
             }
         }
     }
@@ -82,24 +54,25 @@ fn run() -> u32 {
 
     // Preferential attachment.
     let mut rng = rand::thread_rng();
+    let mut targets = Vec::with_capacity(m);
     for i in m..size {
-        let mut targets = Vec::with_capacity(m);
+        targets.clear();
         while targets.len() < m {
             let target = repeated_nodes[rng.gen_range(0..repeated_nodes.len())];
             if !targets.contains(&target) { targets.push(target); }
         }
-        for target in targets {
+        for &target in &targets {
             edges.push(i as u32); edges.push(target);
             repeated_nodes.push(i as u32); repeated_nodes.push(target);
         }
     }
 
-    // MST output allocation.
-    // A spanning tree on N nodes will have exactly N-1 edges. Each edge is 2 u32s.
+    // MST execution.
+    // A spanning tree on N nodes will have exactly N-1 edges.
     let max_mst_edges = size - 1;
     let mut mst_edges_out = vec![0u32; max_mst_edges * 2];
 
-    let edges_in_tree = mst(&edges, &mut mst_edges_out, size as u32);
+    let edges_in_tree = mst(&edges, &mut mst_edges_out, size);
 
     if edges_in_tree != max_mst_edges as u32 {
         eprintln!("MST failed or incomplete! Expected {}, got {}", max_mst_edges, edges_in_tree);

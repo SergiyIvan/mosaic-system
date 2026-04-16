@@ -30,13 +30,15 @@ pub extern "C" fn run() -> u32 {
 
     // Preferential attachment.
     let mut rng = rand::thread_rng();
+    let mut targets = Vec::with_capacity(m);
+
     for i in m..size {
-        let mut targets = Vec::with_capacity(m);
+        targets.clear();
         while targets.len() < m {
             let target = repeated_nodes[rng.gen_range(0..repeated_nodes.len())];
             if !targets.contains(&target) { targets.push(target); }
         }
-        for target in targets {
+        for &target in &targets {
             edges.push(i as u32); edges.push(target);
             repeated_nodes.push(i as u32); repeated_nodes.push(target);
         }

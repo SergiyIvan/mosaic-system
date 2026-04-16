@@ -2,8 +2,36 @@ use anyhow::Result;
 use wasmtime::{Caller, Extern, Linker};
 use runner::ModuleState;
 
-use std::collections::VecDeque;
+use petgraph::graph::UnGraph;
+use petgraph::visit::Bfs;
 
+
+fn bfs(edges: &[u32], out_order: &mut [u32], num_nodes: usize, start_node: usize) -> u32 {
+    let mut graph = UnGraph::<(), ()>::with_capacity(num_nodes, edges.len() / 2);
+    let mut nodes = Vec::with_capacity(num_nodes);
+
+    for _ in 0..num_nodes {
+        nodes.push(graph.add_node(()));
+    }
+
+    for chunk in edges.chunks_exact(2) {
+        let u = chunk[0] as usize;
+        let v = chunk[1] as usize;
+        graph.add_edge(nodes[u], nodes[v], ());
+    }
+
+    let mut bfs = Bfs::new(&graph, nodes[start_node]);
+    let mut count = 0;
+
+    while let Some(nx) = bfs.next(&graph) {
+        if count < out_order.len() {
+            out_order[count] = nx.index() as u32;
+        }
+        count += 1;
+    }
+
+    count as u32
+}
 
 fn register_host_funcs(linker: &mut Linker<ModuleState>) -> Result<()> {
 
@@ -34,45 +62,7 @@ fn register_host_funcs(linker: &mut Linker<ModuleState>) -> Result<()> {
                 max_out_len as usize
             );
 
-            let num_nodes_usize = num_nodes as usize;
-
-            // 1. Build adjacency list (undirected).
-            let mut adj = vec![Vec::new(); num_nodes_usize];
-            for chunk in edges_slice.chunks_exact(2) {
-                let u = chunk[0] as usize;
-                let v = chunk[1] as usize;
-                adj[u].push(v as u32);
-                adj[v].push(u as u32);
-            }
-
-            // 2. BFS initialization.
-            let mut visited = vec![false; num_nodes_usize];
-            let mut queue = VecDeque::with_capacity(num_nodes_usize);
-
-            let mut count = 0;
-
-            if (start_node as usize) < num_nodes_usize {
-                visited[start_node as usize] = true;
-                queue.push_back(start_node as u32);
-
-                // 3. Traversal loop.
-                while let Some(node) = queue.pop_front() {
-                    // Record visitation order directly into Wasm memory.
-                    if count < max_out_len as usize {
-                        out_slice[count] = node;
-                    }
-                    count += 1;
-
-                    for &neighbor in &adj[node as usize] {
-                        if !visited[neighbor as usize] {
-                            visited[neighbor as usize] = true;
-                            queue.push_back(neighbor);
-                        }
-                    }
-                }
-            }
-
-            count as u32
+            bfs(edges_slice, out_slice, num_nodes as usize, start_node as usize)
         };
 
         visited_count
