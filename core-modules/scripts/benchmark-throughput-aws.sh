@@ -96,13 +96,9 @@ for config in $CONFIGS; do
     # ----------------------------------------
     # 1. NATIVE EXECUTION
     # ----------------------------------------
-    echo "Downloading Native Artifacts ($config)..."
+    echo "Setting up Native Artifacts ($config)..."
     native_dir="$ARTIFACTS_DIR/native/$config"
     mkdir -p "$native_dir"
-
-    aws s3 cp "s3://$S3_BUCKET/$ARCH_FOLDER/native/${config}.zip" "$native_dir/native.zip"
-    unzip -q -j "$native_dir/native.zip" -d "$native_dir"
-    chmod +x "$native_dir"/*
 
     result_file="$RESULT_DIR/result-native-$config.json"
     rm -f "$result_file"
@@ -111,6 +107,11 @@ for config in $CONFIGS; do
 
     for bench in "${BENCHMARKS[@]}"; do
         ensure_correct_ffmpeg $config $bench
+
+        if [ ! -f "$native_dir/$bench" ]; then
+            aws s3 cp "s3://$S3_BUCKET/$ARCH_FOLDER/native/$config/$bench/$bench" "$native_dir/$bench"
+            chmod +x "$native_dir/$bench"
+        fi
 
         echo "Running Native [$bench] - $ITERATIONS iterations..."
         for ((i=1; i<=ITERATIONS; i++)); do
@@ -129,13 +130,9 @@ for config in $CONFIGS; do
     # 2. MOSAIC EXECUTION (Skipping 'default')
     # ----------------------------------------
     if [ "$config" != "default" ]; then
-        echo "Downloading Mosaic Artifacts ($config)..."
+        echo "Setting up Mosaic Artifacts ($config)..."
         mosaic_dir="$ARTIFACTS_DIR/mosaic/$config"
         mkdir -p "$mosaic_dir"
-
-        aws s3 cp "s3://$S3_BUCKET/$ARCH_FOLDER/mosaic/${config}.zip" "$mosaic_dir/mosaic.zip"
-        unzip -q -j "$mosaic_dir/mosaic.zip" -d "$mosaic_dir"
-        chmod +x "$mosaic_dir"/*
 
         result_file="$RESULT_DIR/result-mosaic-$config.json"
         rm -f "$result_file"
@@ -145,10 +142,16 @@ for config in $CONFIGS; do
         for bench in "${BENCHMARKS[@]}"; do
             ensure_correct_ffmpeg $config $bench
 
-            echo "Running Mosaic [$bench] - $ITERATIONS iterations..."
-
             # Replacing hyphens with underscores for Wasm files (following file naming convention).
             wasm_file="${bench//-/_}.wasm"
+
+            if [ ! -f "$mosaic_dir/$bench" ]; then
+                aws s3 cp "s3://$S3_BUCKET/$ARCH_FOLDER/mosaic/$config/$bench/$bench" "$mosaic_dir/$bench"
+                aws s3 cp "s3://$S3_BUCKET/$ARCH_FOLDER/mosaic/$config/$bench/$wasm_file" "$mosaic_dir/$wasm_file"
+                chmod +x "$mosaic_dir/$bench"
+            fi
+
+            echo "Running Mosaic [$bench] - $ITERATIONS iterations..."
 
             for ((i=1; i<=ITERATIONS; i++)); do
                 if [ "$first_item" = true ]; then first_item=false; else echo "," >> "$result_file"; fi

@@ -12,9 +12,15 @@ set -e
 CONFIGS=$1
 S3_BUCKET=$2
 MACHINE_ALIAS=$3
+CUSTOM_BENCHMARKS=$4
 
 BENCHMARKS=("bfs" "compression" "dna" "dynamic-html" "mst" "pagerank" "thumbnailer" "uploader" "classify" "video-processing")
 BENCHMARKS_HOME=$(DIR)/../../core-modules/native
+
+if [ -n "$CUSTOM_BENCHMARKS" ]; then
+    # Custom subset of benchmarks provided, overwriting the BENCHMARKS array.
+    read -r -a BENCHMARKS <<< "$CUSTOM_BENCHMARKS"
+fi
 
 cd $BENCHMARKS_HOME
 
@@ -24,23 +30,12 @@ for CONFIG in $CONFIGS; do
 
     # Compile.
     for bench in "${BENCHMARKS[@]}"; do
+        echo "  Compiling $bench"
         cd $bench
         cargo build-$CONFIG
         cd ..
+
+        aws s3 cp "$BENCHMARKS_HOME/$bench/target/release/$bench" "s3://$S3_BUCKET/$MACHINE_ALIAS/native/$CONFIG/$bench/$bench"
     done
 
-    # Extract binaries.
-    tmp_dir="/tmp/result_$CONFIG"
-    mkdir -p $tmp_dir
-
-    for bench in "${BENCHMARKS[@]}"; do
-        cp "$BENCHMARKS_HOME/$bench/target/release/$bench" "$tmp_dir/"
-    done
-
-    zip_name="native_${CONFIG}.zip"
-    zip -j $zip_name $tmp_dir/*
-
-    rm -rf $tmp_dir
-
-    aws s3 cp $zip_name s3://$S3_BUCKET/$MACHINE_ALIAS/native/${CONFIG}.zip
 done

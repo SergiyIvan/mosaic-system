@@ -16,6 +16,11 @@ if [ -z "$GITHUB_TOKEN" ]; then
     exit 1
 fi
 
+# ==========================================
+# Leave empty ("") to compile all benchmarks.
+TARGET_BENCHMARKS=""
+# ==========================================
+
 echo "[1/3] Spinning up compilation instances (Terraform)..."
 terraform init
 terraform apply -auto-approve
@@ -32,7 +37,7 @@ sleep 30
 
 echo "[2/3] Compiling and Uploading (Ansible)..."
 ansible-playbook -i inventory.ini compile.yml \
-    --extra-vars "github_token=$GITHUB_TOKEN target_bucket=$S3_BUCKET repo_url=github.com/SergiyIvan/mosaic-system.git"
+    --extra-vars "github_token=$GITHUB_TOKEN target_bucket=$S3_BUCKET repo_url=github.com/SergiyIvan/mosaic-system.git target_benchmarks='$TARGET_BENCHMARKS'"
 
 echo "  Compilation complete! All artifacts are safely stored in S3."
 

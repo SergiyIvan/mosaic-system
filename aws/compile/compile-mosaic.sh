@@ -12,9 +12,15 @@ set -e
 CONFIGS=$1
 S3_BUCKET=$2
 MACHINE_ALIAS=$3
+CUSTOM_BENCHMARKS=$4
 
 BENCHMARKS=("bfs" "compression" "dna" "dynamic-html" "mst" "pagerank" "thumbnailer" "uploader" "classify" "video-processing")
 BENCHMARKS_HOME=$(DIR)/../../core-modules/mosaic
+
+if [ -n "$CUSTOM_BENCHMARKS" ]; then
+    # Custom subset of benchmarks provided, overwriting the BENCHMARKS array.
+    read -r -a BENCHMARKS <<< "$CUSTOM_BENCHMARKS"
+fi
 
 cd $BENCHMARKS_HOME
 
@@ -26,27 +32,15 @@ for CONFIG in $CONFIGS; do
     echo "Building Mosaic: $CONFIG"
 
     for bench in "${BENCHMARKS[@]}"; do
+        echo "  Compiling $bench"
         cd $bench/guest
         cargo build --release
         cd ../host
         cargo build-$CONFIG
         cd ../..
+
+        wasm_file="${bench//-/_}.wasm"
+        aws s3 cp "$BENCHMARKS_HOME/$bench/host/target/release/$bench" "s3://$S3_BUCKET/$MACHINE_ALIAS/mosaic/$CONFIG/$bench/$bench"
+        aws s3 cp "$BENCHMARKS_HOME/$bench/guest/target/wasm32-wasip1/release/$wasm_file" "s3://$S3_BUCKET/$MACHINE_ALIAS/mosaic/$CONFIG/$bench/$wasm_file"
     done
-
-    # Extract binaries.
-    tmp_dir="/tmp/result_$CONFIG"
-    mkdir -p $tmp_dir
-
-    for bench in "${BENCHMARKS[@]}"; do
-        cp "$BENCHMARKS_HOME/$bench/host/target/release/$bench" "$tmp_dir/"
-    done
-
-    cp $BENCHMARKS_HOME/*/guest/target/wasm32-wasip1/release/*.wasm "$tmp_dir/"
-
-    zip_name="mosaic_${CONFIG}.zip"
-    zip -j $zip_name $tmp_dir/*
-
-    rm -rf $tmp_dir
-
-    aws s3 cp $zip_name s3://$S3_BUCKET/$MACHINE_ALIAS/mosaic/${CONFIG}.zip
 done
