@@ -1,13 +1,4 @@
 use rand::Rng;
-use serde::Deserialize;
-use proxy_guest::export_mosaic_function;
-
-
-#[derive(Deserialize)]
-struct BfsInput {
-    size: Option<usize>,
-    m: Option<usize>,
-}
 
 #[link(wasm_import_module = "env")]
 unsafe extern "C" {
@@ -19,10 +10,10 @@ unsafe extern "C" {
     ) -> u32;
 }
 
-pub fn proxy_handler(input_json: &str) -> String {
-    let input: BfsInput = serde_json::from_str(input_json).unwrap_or(BfsInput { size: None, m: None });
-    let size = input.size.unwrap_or(100_000);
-    let m = input.m.unwrap_or(10);
+#[unsafe(no_mangle)]
+pub extern "C" fn run() -> u32 {
+    let size = 100_000; // "large" config from SeBS.
+    let m = 10;        // Edges per node in Barabasi-Albert.
 
     // Generating inputs.
     // Creating the Barabási-Albert graph.
@@ -66,11 +57,10 @@ pub fn proxy_handler(input_json: &str) -> String {
         )
     };
 
-    if visited_count == size as u32 {
-        format!("Success: visited {} nodes.", visited_count)
-    } else {
-        format!("Error: only visited {}/{} nodes.", visited_count, size)
+    if visited_count != size as u32 {
+        eprintln!("BFS failed or incomplete!");
+        return 1;
     }
-}
 
-export_mosaic_function!(proxy_handler);
+    0
+}
