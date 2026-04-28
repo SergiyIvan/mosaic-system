@@ -1,74 +1,20 @@
+use compression::run;
 use std::time::{Duration, Instant};
-use std::io::Read;
 
 
-fn download(url: &str, out_buf: &mut [u8]) -> usize {
-    let mut response = match ureq::get(url).call() {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("HTTP Request Failed: {}", e);
-            return 0;
-        }
-    };
-
-    let mut reader = response.body_mut().as_reader();
-    let mut total_bytes_read = 0;
-
-    loop {
-        if total_bytes_read >= out_buf.len() {
-            eprintln!("Exceeded max buffer size!");
-            return 0;
-        }
-
-        match reader.read(&mut out_buf[total_bytes_read..]) {
-            Ok(0) => break, // EOF reached, download complete.
-            Ok(n) => total_bytes_read += n,
-            Err(e) => {
-                eprintln!("Failed reading body stream: {}", e);
-                return 0;
-            }
-        }
-    }
-
-    total_bytes_read
-}
-
-fn compress(in_data: &[u8], out_buf: &mut [u8]) -> usize {
-    // Compression Level: 3 is standard. We use 9 to make the CPU work a bit harder for the benchmark.
-    let compression_level = 9;
-
-    match zstd::bulk::compress_to_buffer(in_data, out_buf, compression_level) {
-        Ok(size) => size,
-        Err(_) => 0,
-    }
-}
-
-fn run() -> u32 {
+fn run_cli() -> u32 {
     let input_url = "http://127.0.0.1:8000/video.mp4";
 
-    let max_input_size = 10 * 1024 * 1024;  // 10 MB max input
-    let max_output_size = 10 * 1024 * 1024; // 10 MB max output
-
-    // Downloading.
-    let mut uncompressed_buf = vec![0u8; max_input_size];
-    let uncompressed_size = download(input_url, &mut uncompressed_buf);
-
-    if uncompressed_size == 0 {
-        eprintln!("Failed to download input.");
-        return 1;
-    }
-
-    // Compressing.
-    let mut compressed_buf = vec![0u8; max_output_size];
-    let compressed_size = compress(&uncompressed_buf[..uncompressed_size], &mut compressed_buf);
+    let compressed_size = run(input_url);
 
     if compressed_size == 0 {
-        eprintln!("Failed to compress input.");
+        eprintln!("Compression failed.");
         return 1;
     }
 
     0
 }
+
 
 fn main() {
     let benchmark_name = "compression";
@@ -81,8 +27,8 @@ fn main() {
 
         eprintln!("==> Starting Warmup ({} iterations)...", warmup_iterations);
         for _ in 0..warmup_iterations {
-            if run() != 0 {
-                eprintln!("Warning: run() returned non-zero status.");
+            if run_cli() != 0 {
+                eprintln!("Warning: run_cli() returned non-zero status.");
             }
         }
 
@@ -92,8 +38,8 @@ fn main() {
         let target_duration = Duration::from_secs(duration_seconds);
 
         while start_time.elapsed() < target_duration {
-            if run() != 0 {
-                eprintln!("Warning: run() returned non-zero status.");
+            if run_cli() != 0 {
+                eprintln!("Warning: run_cli() returned non-zero status.");
             }
             iterations += 1;
         }
@@ -112,7 +58,7 @@ fn main() {
     } else {
         eprintln!("==> Running Single Native Invocation...");
         let start_time = Instant::now();
-        let res = run();
+        let res = run_cli();
         let elapsed = start_time.elapsed();
 
         if res == 0 {

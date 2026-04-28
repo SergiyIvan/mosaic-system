@@ -6,6 +6,13 @@ description = """
 SeBS MST
 """
 
+[lib]
+name = "mst"
+crate-type = ["rlib", "cdylib"]
+
 [dependencies]
 rand = "0.8"
 petgraph = "0.8.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+proxy-guest = { path = "../../shared/proxy-guest" }

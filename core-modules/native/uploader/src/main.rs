@@ -1,83 +1,12 @@
+use uploader::run;
 use std::time::{Duration, Instant};
-use std::io::Read;
 
 
-fn download(url: &str, out_buf: &mut [u8]) -> usize {
-    let mut response = match ureq::get(url).call() {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("HTTP Request Failed: {}", e);
-            return 0;
-        }
-    };
-
-    let mut reader = response.body_mut().as_reader();
-    let mut total_bytes_read = 0;
-
-    loop {
-        if total_bytes_read >= out_buf.len() {
-            eprintln!("Exceeded max buffer size!");
-            return 0;
-        }
-
-        match reader.read(&mut out_buf[total_bytes_read..]) {
-            Ok(0) => break, // EOF reached, download complete.
-            Ok(n) => total_bytes_read += n,
-            Err(e) => {
-                eprintln!("Failed reading body stream: {}", e);
-                return 0;
-            }
-        }
-    }
-
-    total_bytes_read
-}
-
-fn upload(url: &str, file_data: &[u8]) -> u32 {
-    let boundary = "----WasmZeroCopyBoundary123456789";
-    let header = format!(
-        "--{}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"video.mp4\"\r\nContent-Type: application/octet-stream\r\n\r\n",
-        boundary
-    );
-    let footer = format!("\r\n--{}--\r\n", boundary);
-
-    // Pre-allocate the exact buffer size
-    let mut body = Vec::with_capacity(header.len() + file_data.len() + footer.len());
-    body.extend_from_slice(header.as_bytes());
-    body.extend_from_slice(file_data);
-    body.extend_from_slice(footer.as_bytes());
-
-    let content_type = format!("multipart/form-data; boundary={}", boundary);
-
-    let res = match ureq::post(url).header("Content-Type", &content_type).send(body) {
-        Ok(response) => response.status().as_u16() as u32,
-        Err(ureq::Error::StatusCode(code)) => code as u32, // 4xx and 5xx codes.
-        Err(e) => {
-            eprintln!("Upload failed: {}", e);
-            0
-        }
-    };
-
-    res
-}
-
-fn run() -> u32 {
+fn run_cli() -> u32 {
     let download_url = "http://127.0.0.1:8000/video.mp4";
     let upload_url = "http://127.0.0.1:9696/upload";
 
-    let max_file_size = 5 * 1024 * 1024; // 5 MB
-
-    // Downloading.
-    let mut media_buf = vec![0u8; max_file_size];
-    let downloaded_size = download(download_url, &mut media_buf);
-
-    if downloaded_size == 0 {
-        eprintln!("Failed to download input.");
-        return 1;
-    }
-
-    // Uploading.
-    let response_code = upload(upload_url, &media_buf[..downloaded_size]);
+    let response_code = run(download_url, upload_url);
 
     if response_code != 201 && response_code != 409 {
         eprintln!("Failed to upload input. Response code: {}", response_code);
@@ -86,6 +15,7 @@ fn run() -> u32 {
 
     0
 }
+
 
 fn main() {
     let benchmark_name = "uploader";
@@ -98,8 +28,8 @@ fn main() {
 
         eprintln!("==> Starting Warmup ({} iterations)...", warmup_iterations);
         for _ in 0..warmup_iterations {
-            if run() != 0 {
-                eprintln!("Warning: run() returned non-zero status.");
+            if run_cli() != 0 {
+                eprintln!("Warning: run_cli() returned non-zero status.");
             }
         }
 
@@ -109,8 +39,8 @@ fn main() {
         let target_duration = Duration::from_secs(duration_seconds);
 
         while start_time.elapsed() < target_duration {
-            if run() != 0 {
-                eprintln!("Warning: run() returned non-zero status.");
+            if run_cli() != 0 {
+                eprintln!("Warning: run_cli() returned non-zero status.");
             }
             iterations += 1;
         }
@@ -129,7 +59,7 @@ fn main() {
     } else {
         eprintln!("==> Running Single Native Invocation...");
         let start_time = Instant::now();
-        let res = run();
+        let res = run_cli();
         let elapsed = start_time.elapsed();
 
         if res == 0 {

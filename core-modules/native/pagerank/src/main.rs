@@ -1,61 +1,22 @@
-use rand::Rng;
+use pagerank::run;
 use std::time::{Duration, Instant};
-use pagerank_lib::pagerank;
 
 
-fn run() -> u32 {
-    let size = 10_000; // "small" config from SeBS.
-    let m = 10;        // Edges per node in Barabasi-Albert.
+fn run_cli() -> u32 {
+    let size = 10_000;
+    let m = 10;
     let iterations = 20;
 
-    // Creating the Barabási-Albert graph.
-    let mut edges = Vec::with_capacity(size * m * 2);
-    let mut repeated_nodes = Vec::with_capacity(size * m * 2);
+    let oldest_pr_score = run(size, m, iterations);
 
-    // Initial clique of m nodes.
-    for i in 0..m {
-        for j in i + 1..m {
-            edges.push(i as u32); edges.push(j as u32);
-            repeated_nodes.push(i as u32); repeated_nodes.push(j as u32);
-        }
-    }
-
-    // Preferential attachment.
-    let mut rng = rand::thread_rng();
-    let mut targets = Vec::with_capacity(m);
-    for i in m..size {
-        targets.clear();
-        while targets.len() < m {
-            let target = repeated_nodes[rng.gen_range(0..repeated_nodes.len())];
-            if !targets.contains(&target) { targets.push(target); }
-        }
-        for &target in &targets {
-            edges.push(i as u32); edges.push(target);
-            repeated_nodes.push(i as u32); repeated_nodes.push(target);
-        }
-    }
-
-    // Output array for PageRank scores.
-    let mut pr_scores = vec![0.0f32; size];
-
-    // Call the native function directly
-    let success = pagerank(&edges, &mut pr_scores, iterations);
-
-    if success != 1 {
-        eprintln!("PageRank failed: Function returned error!");
-        return 1;
-    }
-
-    // Mathematical sanity check.
-    // Node 0 is the oldest node and should accumulate a high PageRank score.
-    // If it's <= 0.0 (or unchanged from the 1.0/N initialization base without damping), something broke.
-    if pr_scores[0] <= 0.0 {
-        eprintln!("PageRank failed: Scores are zero or invalid!");
+    if oldest_pr_score <= 0.0 {
+        eprintln!("Error: PageRank failed: Scores are zero or invalid!");
         return 1;
     }
 
     0
 }
+
 
 fn main() {
     let benchmark_name = "pagerank";
@@ -68,8 +29,8 @@ fn main() {
 
         eprintln!("==> Starting Warmup ({} iterations)...", warmup_iterations);
         for _ in 0..warmup_iterations {
-            if run() != 0 {
-                eprintln!("Warning: run() returned non-zero status.");
+            if run_cli() != 0 {
+                eprintln!("Warning: run_cli() returned non-zero status.");
             }
         }
 
@@ -79,8 +40,8 @@ fn main() {
         let target_duration = Duration::from_secs(duration_seconds);
 
         while start_time.elapsed() < target_duration {
-            if run() != 0 {
-                eprintln!("Warning: run() returned non-zero status.");
+            if run_cli() != 0 {
+                eprintln!("Warning: run_cli() returned non-zero status.");
             }
             iterations += 1;
         }
@@ -99,7 +60,7 @@ fn main() {
     } else {
         eprintln!("==> Running Single Native Invocation...");
         let start_time = Instant::now();
-        let res = run();
+        let res = run_cli();
         let elapsed = start_time.elapsed();
 
         if res == 0 {

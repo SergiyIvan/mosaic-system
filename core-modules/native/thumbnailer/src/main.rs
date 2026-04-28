@@ -1,92 +1,22 @@
+use thumbnailer::run;
 use std::time::{Duration, Instant};
-use std::io::{Read, Cursor};
-use image::imageops::FilterType;
 
 
-fn download(url: &str, out_buf: &mut [u8]) -> usize {
-    let mut response = match ureq::get(url).call() {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("HTTP Request Failed: {}", e);
-            return 0;
-        }
-    };
-
-    let mut reader = response.body_mut().as_reader();
-    let mut total_bytes_read = 0;
-
-    loop {
-        if total_bytes_read >= out_buf.len() {
-            eprintln!("Exceeded max buffer size!");
-            return 0;
-        }
-
-        match reader.read(&mut out_buf[total_bytes_read..]) {
-            Ok(0) => break, // EOF reached, download complete.
-            Ok(n) => total_bytes_read += n,
-            Err(e) => {
-                eprintln!("Failed reading body stream: {}", e);
-                return 0;
-            }
-        }
-    }
-
-    total_bytes_read
-}
-
-fn resize(in_data: &[u8], w: u32, h: u32, out_buf: &mut [u8]) -> usize {
-    let img = match image::load_from_memory(in_data) {
-        Ok(i) => i,
-        Err(e) => {
-            eprintln!("Failed to decode image: {}", e);
-            return 0;
-        }
-    };
-
-    let resized = img.resize(w, h, FilterType::Lanczos3);
-
-    let mut cursor = Cursor::new(out_buf);
-    match resized.write_to(&mut cursor, image::ImageFormat::Jpeg) {
-        Ok(_) => cursor.position() as usize,
-        Err(e) => {
-            eprintln!("Failed to encode JPEG: {}", e);
-            0
-        }
-    }
-}
-
-fn run() -> u32 {
+fn run_cli() -> u32 {
     let url = "http://127.0.0.1:8000/snap.png";
     let target_width = 200;
     let target_height = 200;
 
-    let max_image_size = 15 * 1024 * 1024; // 15 MB
-
-    // Downloading.
-    let mut download_buf = vec![0u8; max_image_size];
-    let download_size = download(url, &mut download_buf);
-
-    if download_size == 0 {
-        eprintln!("Failed to download image.");
-        return 1;
-    }
-
-    // Resizing.
-    let mut resize_buf = vec![0u8; max_image_size];
-    let resized_size = resize(
-        &download_buf[..download_size],
-        target_width,
-        target_height,
-        &mut resize_buf
-    );
+    let resized_size = run(url, target_width, target_height);
 
     if resized_size == 0 {
-        eprintln!("Failed to resize image.");
+        eprintln!("Error: Failed to resize image.");
         return 1;
     }
 
     0
 }
+
 
 fn main() {
     let benchmark_name = "thumbnailer";
@@ -99,8 +29,8 @@ fn main() {
 
         eprintln!("==> Starting Warmup ({} iterations)...", warmup_iterations);
         for _ in 0..warmup_iterations {
-            if run() != 0 {
-                eprintln!("Warning: run() returned non-zero status.");
+            if run_cli() != 0 {
+                eprintln!("Warning: run_cli() returned non-zero status.");
             }
         }
 
@@ -110,8 +40,8 @@ fn main() {
         let target_duration = Duration::from_secs(duration_seconds);
 
         while start_time.elapsed() < target_duration {
-            if run() != 0 {
-                eprintln!("Warning: run() returned non-zero status.");
+            if run_cli() != 0 {
+                eprintln!("Warning: run_cli() returned non-zero status.");
             }
             iterations += 1;
         }
@@ -130,7 +60,7 @@ fn main() {
     } else {
         eprintln!("==> Running Single Native Invocation...");
         let start_time = Instant::now();
-        let res = run();
+        let res = run_cli();
         let elapsed = start_time.elapsed();
 
         if res == 0 {

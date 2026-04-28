@@ -1,57 +1,11 @@
+use dna::run;
 use std::time::{Duration, Instant};
-use std::io::Read;
-use squiggle_lib::squiggle_transform;
 
 
-fn download(url: &str, out_buf: &mut [u8]) -> usize {
-    let mut response = match ureq::get(url).call() {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("HTTP Request Failed: {}", e);
-            return 0;
-        }
-    };
-
-    let mut reader = response.body_mut().as_reader();
-    let mut total_bytes_read = 0;
-
-    loop {
-        if total_bytes_read >= out_buf.len() {
-            eprintln!("Exceeded max buffer size!");
-            return 0;
-        }
-
-        match reader.read(&mut out_buf[total_bytes_read..]) {
-            Ok(0) => break, // EOF reached, download complete.
-            Ok(n) => total_bytes_read += n,
-            Err(e) => {
-                eprintln!("Failed reading body stream: {}", e);
-                return 0;
-            }
-        }
-    }
-
-    total_bytes_read
-}
-
-fn run() -> u32 {
+fn run_cli() -> u32 {
     let url = "http://127.0.0.1:8000/bacillus_subtilis.fasta";
 
-    let max_fasta_size = 20 * 1024 * 1024; // 20 MB input.
-    let max_json_size = 200 * 1024 * 1024; // 200 MB output.
-
-    // Downloading.
-    let mut fasta_buf = vec![0u8; max_fasta_size];
-    let fasta_size = download(url, &mut fasta_buf);
-
-    if fasta_size == 0 {
-        eprintln!("Failed to download FASTA sequence.");
-        return 1;
-    }
-
-    // DNA Visualization.
-    let mut json_buf = vec![0u8; max_json_size];
-    let json_size = squiggle_transform(&fasta_buf[..fasta_size], &mut json_buf);
+    let json_size = run(url);
 
     if json_size == 0 {
         eprintln!("Squiggle transformation failed or buffer too small.");
@@ -60,6 +14,7 @@ fn run() -> u32 {
 
     0
 }
+
 
 fn main() {
     let benchmark_name = "dna";
@@ -72,8 +27,8 @@ fn main() {
 
         eprintln!("==> Starting Warmup ({} iterations)...", warmup_iterations);
         for _ in 0..warmup_iterations {
-            if run() != 0 {
-                eprintln!("Warning: run() returned non-zero status.");
+            if run_cli() != 0 {
+                eprintln!("Warning: run_cli() returned non-zero status.");
             }
         }
 
@@ -83,8 +38,8 @@ fn main() {
         let target_duration = Duration::from_secs(duration_seconds);
 
         while start_time.elapsed() < target_duration {
-            if run() != 0 {
-                eprintln!("Warning: run() returned non-zero status.");
+            if run_cli() != 0 {
+                eprintln!("Warning: run_cli() returned non-zero status.");
             }
             iterations += 1;
         }
@@ -103,7 +58,7 @@ fn main() {
     } else {
         eprintln!("==> Running Single Native Invocation...");
         let start_time = Instant::now();
-        let res = run();
+        let res = run_cli();
         let elapsed = start_time.elapsed();
 
         if res == 0 {
