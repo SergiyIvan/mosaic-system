@@ -1,3 +1,12 @@
+use serde::Deserialize;
+use proxy_guest::export_mosaic_function;
+
+#[derive(Deserialize)]
+struct DnaInput {
+    url: Option<String>,
+}
+
+
 #[link(wasm_import_module = "env")]
 unsafe extern "C" {
     fn host_download(url_ptr: *const u8, url_len: u32, out_ptr: *mut u8, max_len: u32) -> u32;
@@ -9,12 +18,12 @@ unsafe extern "C" {
     ) -> u32;
 }
 
-const MAX_FASTA_SIZE: usize = 20 * 1024 * 1024; // 20 MB input.
-const MAX_JSON_SIZE: usize = 200 * 1024 * 1024; // 200 MB output.
+const MAX_FASTA_SIZE: usize = 5 * 1024 * 1024; // 5 MB input.
+const MAX_JSON_SIZE: usize = 50 * 1024 * 1024; // 50 MB output.
 
-#[unsafe(no_mangle)]
-pub extern "C" fn run() -> u32 {
-    let url = "http://127.0.0.1:8000/bacillus_subtilis.fasta";
+pub fn proxy_handler(input_json: &str) -> String {
+    let input: DnaInput = serde_json::from_str(input_json).unwrap_or(DnaInput { url: None });
+    let url = input.url.as_deref().unwrap_or("http://127.0.0.1:8000/bacillus_subtilis.fasta");
 
     // Downloading.
     let mut fasta_buf = vec![0u8; MAX_FASTA_SIZE];
@@ -27,8 +36,7 @@ pub extern "C" fn run() -> u32 {
     };
 
     if fasta_size == 0 {
-        eprintln!("Failed to download FASTA sequence.");
-        return 1;
+        return "Error: Failed to download FASTA sequence.".to_string();
     }
 
     // DNA Visualization.
@@ -42,9 +50,10 @@ pub extern "C" fn run() -> u32 {
     };
 
     if json_size == 0 {
-        eprintln!("Squiggle transformation failed or buffer too small.");
-        return 1;
+        "Error: Squiggle transformation failed or buffer too small.".to_string()
+    } else {
+        format!("Success: Squiggle transformation generated JSON with {} bytes.", json_size)
     }
-
-    0
 }
+
+export_mosaic_function!(proxy_handler);

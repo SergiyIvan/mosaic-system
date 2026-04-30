@@ -1,3 +1,15 @@
+use serde::Deserialize;
+use proxy_guest::export_mosaic_function;
+
+
+#[derive(Deserialize)]
+struct VideoProcessingInput {
+    video_url: Option<String>,
+    watermark_url: Option<String>,
+    ffmpeg_path: Option<String>,
+}
+
+
 #[link(wasm_import_module = "env")]
 unsafe extern "C" {
     // Downloads from URL directly to a file path on the host. Returns bytes written or 0 on error.
@@ -7,14 +19,14 @@ unsafe extern "C" {
     fn host_run_command(cmd_ptr: *const u8, cmd_len: u32) -> u32;
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn run() -> u32 {
-    let video_url = "http://127.0.0.1:8000/video.mp4";
-    let watermark_url = "http://127.0.0.1:8000/watermark.png";
+pub fn proxy_handler(input_json: &str) -> String {
+    let input: VideoProcessingInput = serde_json::from_str(input_json).unwrap_or(VideoProcessingInput { video_url: None, watermark_url: None, ffmpeg_path: None });
+    let video_url = input.video_url.as_deref().unwrap_or("http://127.0.0.1:8000/video.mp4");
+    let watermark_url = input.watermark_url.as_deref().unwrap_or("http://127.0.0.1:8000/watermark.png");
+    let ffmpeg_path = input.ffmpeg_path.as_deref().unwrap_or("/tmp/ffmpeg");
 
     let video_path = "/tmp/video.mp4";
     let watermark_path = "/tmp/watermark.png";
-    let ffmpeg_path = "/tmp/ffmpeg";
     let gif_output_path = "/tmp/processed.gif";
     let watermark_output_path = "/tmp/watermarked.mp4";
 
@@ -25,7 +37,7 @@ pub extern "C" fn run() -> u32 {
             video_path.as_ptr(), video_path.len() as u32
         )
     };
-    if video_size == 0 { eprintln!("Failed to download video."); return 1; }
+    if video_size == 0 { return "Error: Failed to download video.".to_string(); }
 
     let watermark_size = unsafe {
         host_download_to_file(
@@ -33,7 +45,7 @@ pub extern "C" fn run() -> u32 {
             watermark_path.as_ptr(), watermark_path.len() as u32
         )
     };
-    if watermark_size == 0 { eprintln!("Failed to download watermark."); return 1; }
+    if watermark_size == 0 { return "Error: Failed to download watermark.".to_string(); }
 
     // Running FFmpeg.
     // Command 1: Extract GIF (Duration: 5 seconds).
@@ -50,12 +62,14 @@ pub extern "C" fn run() -> u32 {
 
     unsafe {
         if host_run_command(cmd_gif.as_ptr(), cmd_gif.len() as u32) != 0 {
-            eprintln!("FFmpeg GIF generation failed"); return 1;
+            return "Error: FFmpeg GIF generation failed".to_string();
         }
         if host_run_command(cmd_watermark.as_ptr(), cmd_watermark.len() as u32) != 0 {
-            eprintln!("FFmpeg Watermarking failed"); return 1;
+            return "Error: FFmpeg Watermarking failed".to_string();
         }
     }
 
-    0
+    return "Success: Extracted GIF and applied watermark.".to_string();
 }
+
+export_mosaic_function!(proxy_handler);

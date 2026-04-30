@@ -1,3 +1,13 @@
+use serde::Deserialize;
+use proxy_guest::export_mosaic_function;
+
+
+#[derive(Deserialize)]
+struct CompressionInput {
+    input_url: Option<String>,
+}
+
+
 #[link(wasm_import_module = "env")]
 unsafe extern "C" {
     // Downloads from URL into Wasm memory. Returns actual byte size, or 0 on error.
@@ -14,9 +24,9 @@ unsafe extern "C" {
 const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024;  // 10 MB max input
 const MAX_OUTPUT_SIZE: usize = 10 * 1024 * 1024; // 10 MB max output
 
-#[unsafe(no_mangle)]
-pub extern "C" fn run() -> u32 {
-    let input_url = "http://127.0.0.1:8000/video.mp4";
+pub fn proxy_handler(input_json: &str) -> String {
+    let input: CompressionInput = serde_json::from_str(input_json).unwrap_or(CompressionInput { input_url: None });
+    let input_url = input.input_url.as_deref().unwrap_or("http://127.0.0.1:8000/video.mp4");
 
     // Downloading.
     let mut uncompressed_buf = vec![0u8; MAX_INPUT_SIZE];
@@ -29,8 +39,7 @@ pub extern "C" fn run() -> u32 {
     };
 
     if uncompressed_size == 0 {
-        eprintln!("Failed to download input.");
-        return 1;
+        return "Error: Failed to download input.".to_string();
     }
 
     // Compressing.
@@ -44,9 +53,10 @@ pub extern "C" fn run() -> u32 {
     };
 
     if compressed_size == 0 {
-        eprintln!("Failed to compress input.");
-        return 1;
+        "Error: Compression failed.".to_string()
+    } else {
+        format!("Success: Compressed input file to {} bytes.", compressed_size)
     }
-
-    0
 }
+
+export_mosaic_function!(proxy_handler);

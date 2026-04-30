@@ -1,4 +1,14 @@
 use rand::Rng;
+use serde::Deserialize;
+use proxy_guest::export_mosaic_function;
+
+
+#[derive(Deserialize)]
+struct MstInput {
+    size: Option<usize>,
+    m: Option<usize>,
+}
+
 
 #[link(wasm_import_module = "env")]
 unsafe extern "C" {
@@ -10,10 +20,10 @@ unsafe extern "C" {
     ) -> u32;
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn run() -> u32 {
-    let size = 100_000; // "large" config from SeBS.
-    let m = 10;        // Edges per node in Barabasi-Albert.
+pub fn proxy_handler(input_json: &str) -> String {
+    let input: MstInput = serde_json::from_str(input_json).unwrap_or(MstInput { size: None, m: None });
+    let size = input.size.unwrap_or(100_000);
+    let m = input.m.unwrap_or(10);
 
     // Generating inputs.
     // Creating the Barabási-Albert graph.
@@ -57,10 +67,11 @@ pub extern "C" fn run() -> u32 {
         )
     };
 
-    if edges_in_tree != max_mst_edges as u32 {
-        eprintln!("MST failed or incomplete!");
-        return 1;
+    if edges_in_tree == max_mst_edges as u32 {
+        format!("Success: MST constructed with {} edges.", edges_in_tree)
+    } else {
+        format!("Error: MST constructed with {}/{} edges.", edges_in_tree, max_mst_edges)
     }
-
-    0
 }
+
+export_mosaic_function!(proxy_handler);

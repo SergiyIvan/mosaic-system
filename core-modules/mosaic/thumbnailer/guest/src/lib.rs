@@ -1,3 +1,15 @@
+use serde::Deserialize;
+use proxy_guest::export_mosaic_function;
+
+
+#[derive(Deserialize)]
+struct ThumbnailerInput {
+    url: Option<String>,
+    target_width: Option<u32>,
+    target_height: Option<u32>,
+}
+
+
 #[link(wasm_import_module = "env")]
 unsafe extern "C" {
     // Downloads from URL into Wasm memory. Returns actual byte size, or 0 on error.
@@ -13,11 +25,11 @@ unsafe extern "C" {
 
 const MAX_IMAGE_SIZE: usize = 15 * 1024 * 1024; // 15 MB.
 
-#[unsafe(no_mangle)]
-pub extern "C" fn run() -> u32 {
-    let url = "http://127.0.0.1:8000/snap.png";
-    let target_width = 200;
-    let target_height = 200;
+pub fn proxy_handler(input_json: &str) -> String {
+    let input: ThumbnailerInput = serde_json::from_str(input_json).unwrap_or(ThumbnailerInput { url: None, target_width: None, target_height: None });
+    let url = input.url.as_deref().unwrap_or("http://127.0.0.1:8000/snap.png");
+    let target_width = input.target_width.unwrap_or(200);
+    let target_height = input.target_height.unwrap_or(200);
 
     let mut download_buf = vec![0u8; MAX_IMAGE_SIZE];
     let mut resize_buf = vec![0u8; MAX_IMAGE_SIZE];
@@ -31,8 +43,7 @@ pub extern "C" fn run() -> u32 {
     };
 
     if download_size == 0 {
-        eprintln!("Failed to download image.");
-        return 1;
+        return "Error: Failed to download image.".to_string();
     }
 
     // Compute (Resize) Phase.
@@ -45,9 +56,10 @@ pub extern "C" fn run() -> u32 {
     };
 
     if resized_size == 0 {
-        eprintln!("Failed to resize image.");
-        return 1;
+        "Error: Failed to resize image.".to_string()
+    } else {
+        format!("Success: Generated thumbnail of {} bytes.", resized_size)
     }
-
-    0
 }
+
+export_mosaic_function!(proxy_handler);

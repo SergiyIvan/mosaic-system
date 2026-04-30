@@ -1,0 +1,10 @@
+[package]
+name = "http-trampoline"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+ureq = "3.2"

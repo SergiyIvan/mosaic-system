@@ -1,4 +1,15 @@
 use rand::Rng;
+use serde::Deserialize;
+use proxy_guest::export_mosaic_function;
+
+
+#[derive(Deserialize)]
+struct PagerankInput {
+    size: Option<usize>,
+    m: Option<usize>,
+    iterations: Option<u32>,
+}
+
 
 #[link(wasm_import_module = "env")]
 unsafe extern "C" {
@@ -10,11 +21,11 @@ unsafe extern "C" {
     ) -> u32;
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn run() -> u32 {
-    let size = 10_000; // "small" config from SeBS.
-    let m = 10;        // Edges per node in Barabasi-Albert.
-    let iterations = 20;
+pub fn proxy_handler(input_json: &str) -> String {
+    let input: PagerankInput = serde_json::from_str(input_json).unwrap_or(PagerankInput { size: None, m: None, iterations: None });
+    let size = input.size.unwrap_or(10_000);
+    let m = input.m.unwrap_or(10);
+    let iterations = input.iterations.unwrap_or(20);
 
     // Generating inputs.
     // Creating the Barabási-Albert graph.
@@ -56,18 +67,11 @@ pub extern "C" fn run() -> u32 {
         )
     };
 
-    if success != 1 {
-        eprintln!("PageRank failed: Host returned error!");
-        return 1;
+    if success != 1 || pr_scores[0] <= 0.0 {
+        "Error: PageRank failed or scores are zero/invalid!".to_string()
+    } else {
+        format!("Success: score of the oldest node: {}.", pr_scores[0])
     }
-
-    // Mathematical sanity check.
-    // Node 0 is the oldest node and should accumulate a high PageRank score.
-    // If it's <= 0.0 (or unchanged from the 1.0/N initialization base without damping), something broke.
-    if pr_scores[0] <= 0.0 {
-        eprintln!("PageRank failed: Scores are zero or invalid!");
-        return 1;
-    }
-
-    0
 }
+
+export_mosaic_function!(proxy_handler);

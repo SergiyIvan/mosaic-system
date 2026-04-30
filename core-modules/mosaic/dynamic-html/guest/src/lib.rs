@@ -1,4 +1,15 @@
 use rand::Rng;
+use serde::Deserialize;
+use proxy_guest::export_mosaic_function;
+
+
+#[derive(Deserialize)]
+struct DynamicHtmlInput {
+    url: Option<String>,
+    username: Option<String>,
+    random_len: Option<usize>,
+}
+
 
 #[link(wasm_import_module = "env")]
 unsafe extern "C" {
@@ -14,14 +25,16 @@ unsafe extern "C" {
     ) -> u32;
 }
 
-const MAX_TEMPLATE_SIZE: usize = 1 * 1024; // 1 KB
-const MAX_HTML_SIZE: usize = 100 * 1024 * 1024; // 1 MB
 
-#[unsafe(no_mangle)]
-pub extern "C" fn run() -> u32 {
-    let url = "http://127.0.0.1:8000/template.html";
-    let username = "rbruno";
-    let random_len = 1_000_000;
+const MAX_TEMPLATE_SIZE: usize = 1 * 1024; // 1 KB
+const MAX_HTML_SIZE: usize = 100 * 1024 * 1024; // 100 MB
+
+
+pub fn proxy_handler(input_json: &str) -> String {
+    let input: DynamicHtmlInput = serde_json::from_str(input_json).unwrap_or(DynamicHtmlInput { url: None, username: None, random_len: None });
+    let url = input.url.as_deref().unwrap_or("http://127.0.0.1:8000/template.html");
+    let username = input.username.as_deref().unwrap_or("rbruno");
+    let random_len = input.random_len.unwrap_or(1_000_000);
 
     // Generating random numbers.
     let mut random_numbers = vec![0u32; random_len];
@@ -41,8 +54,7 @@ pub extern "C" fn run() -> u32 {
     };
 
     if template_size == 0 {
-        eprintln!("Failed to download template.");
-        return 1;
+        return "Error: Failed to download template.".to_string();
     }
 
     // Generating the HTML.
@@ -57,10 +69,11 @@ pub extern "C" fn run() -> u32 {
         )
     };
 
-    if html_size == 0 {
-        eprintln!("Failed to render HTML.");
-        return 1;
+    if html_size > 0 {
+        format!("Success: Generated HTML with {} bytes.", html_size)
+    } else {
+        "Error: Failed to generate HTML.".to_string()
     }
-
-    0
 }
+
+export_mosaic_function!(proxy_handler);

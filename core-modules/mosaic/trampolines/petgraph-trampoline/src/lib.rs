@@ -1,3 +1,5 @@
+use petgraph::algo::min_spanning_tree;
+use petgraph::data::Element;
 use petgraph::graph::UnGraph;
 use petgraph::visit::Bfs;
 
@@ -27,6 +29,38 @@ fn bfs(edges: &[u32], out_order: &mut [u32], num_nodes: usize, start_node: usize
     }
 
     count as u32
+}
+
+
+fn mst(edges: &[u32], out_edges: &mut [u32], num_nodes: usize) -> u32 {
+    let mut graph = UnGraph::<(), ()>::with_capacity(num_nodes, edges.len() / 2);
+    let mut nodes = Vec::with_capacity(num_nodes);
+
+    for _ in 0..num_nodes {
+        nodes.push(graph.add_node(()));
+    }
+
+    for chunk in edges.chunks_exact(2) {
+        let u = chunk[0] as usize;
+        let v = chunk[1] as usize;
+        graph.add_edge(nodes[u], nodes[v], ());
+    }
+
+    let mst_result = min_spanning_tree(&graph);
+    let mut mst_edge_count = 0;
+
+    for element in mst_result {
+        if let Element::Edge { source, target, .. } = element {
+            // Write pairs (source, target) into the flat output array.
+            if (mst_edge_count * 2) + 1 < out_edges.len() {
+                out_edges[mst_edge_count * 2] = source as u32;
+                out_edges[mst_edge_count * 2 + 1] = target as u32;
+                mst_edge_count += 1;
+            }
+        }
+    }
+
+    mst_edge_count as u32
 }
 
 
@@ -77,6 +111,38 @@ pub unsafe extern "C" fn trampoline_dispatch(
 
                 // Write back return value.
                 *ret_ptr = visited_count as u64;
+                true
+            }
+            "host_mst" => {
+                if args.len() != 5 { return false; }
+
+                // Unpack Wasm arguments from the generic u64 array.
+                let edges_ptr = args[0] as usize;
+                let edges_len = args[1] as usize;
+                let out_ptr = args[2] as usize;
+                let max_out_len = args[3] as usize;
+                let num_nodes = args[4] as usize;
+
+                // Security bounds check.
+                let bounds_ok = (edges_ptr + (edges_len * 4) <= mem_len) &&
+                                (out_ptr + (max_out_len * 4) <= mem_len);
+                if !bounds_ok { return false; }
+
+                // Reconstruct slices pointing directly to Wasm memory.
+                let edges_slice = std::slice::from_raw_parts(
+                    mem_base.add(edges_ptr) as *const u32,
+                    edges_len,
+                );
+                let out_slice = std::slice::from_raw_parts_mut(
+                    mem_base.add(out_ptr) as *mut u32,
+                    max_out_len,
+                );
+
+                // Execute function.
+                let edges_in_tree = mst(edges_slice, out_slice, num_nodes);
+
+                // Write back return value.
+                *ret_ptr = edges_in_tree as u64;
                 true
             }
             _ => false, // Unknown function requested.
