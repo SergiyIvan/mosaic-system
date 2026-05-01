@@ -27,11 +27,11 @@ fi
 
 PROFILE=$1
 
-echo "Building all benchmarks as $PROFILE."
+echo "Building all benchmarks for local execution as $PROFILE."
 
 for bench in "${BENCHMARKS[@]}"; do
     bench_host_dir="$(DIR)/$bench/host"
-    bench_guest_dir="$(DIR)/$bench/guest"
+    bench_guest_dir="$(DIR)/$bench/guest-local"
     echo ""
     echo "  Building $bench"
     (cd "$bench_guest_dir" && cargo build --release)

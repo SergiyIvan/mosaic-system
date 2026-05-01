@@ -19,7 +19,7 @@ unsafe extern "C" {
 }
 
 const MAX_FASTA_SIZE: usize = 5 * 1024 * 1024; // 5 MB input.
-const MAX_JSON_SIZE: usize = 50 * 1024 * 1024; // 50 MB output.
+const MAX_JSON_SIZE: usize = 155 * 1024 * 1024; // 155 MB output.
 
 pub fn proxy_handler(input_json: &str) -> String {
     let input: DnaInput = serde_json::from_str(input_json).unwrap_or(DnaInput { url: None });
