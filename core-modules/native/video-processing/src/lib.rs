@@ -7,7 +7,7 @@ use proxy_guest::export_function;
 struct VideoProcessingInput {
     video_url: Option<String>,
     watermark_url: Option<String>,
-    ffmpeg_path: Option<String>,
+    ffmpeg_url: Option<String>,
 }
 
 
@@ -47,11 +47,23 @@ fn run_command(cmd_str: &str) -> bool {
     status.map_or(false, |s| s.success())
 }
 
-pub fn run(video_url: &str, watermark_url: &str, ffmpeg_path: &str) -> u32 {
+pub fn run(video_url: &str, watermark_url: &str, ffmpeg_url: &str) -> u32 {
     let video_path = "/tmp/video.mp4";
     let watermark_path = "/tmp/watermark.png";
+    let ffmpeg_path = "/tmp/ffmpeg";
     let gif_output_path = "/tmp/processed.gif";
     let watermark_output_path = "/tmp/watermarked.mp4";
+
+    if !std::path::Path::new(ffmpeg_path).exists() {
+        if !download_to_file(ffmpeg_url, ffmpeg_path) {
+            eprintln!("Failed to download FFmpeg.");
+            return 1;
+        }
+        if !run_command(&format!("chmod +x {}", ffmpeg_path)) {
+            eprintln!("Failed to set executable permissions on FFmpeg.");
+            return 1;
+        }
+    }
 
     if !download_to_file(video_url, video_path) {
         eprintln!("Failed to download video.");
@@ -90,13 +102,13 @@ pub fn run(video_url: &str, watermark_url: &str, ffmpeg_path: &str) -> u32 {
 
 
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: VideoProcessingInput = serde_json::from_str(input_json).unwrap_or(VideoProcessingInput { video_url: None, watermark_url: None, ffmpeg_path: None });
+    let input: VideoProcessingInput = serde_json::from_str(input_json).unwrap_or(VideoProcessingInput { video_url: None, watermark_url: None, ffmpeg_url: None });
 
     let video_url = input.video_url.as_deref().unwrap_or("http://127.0.0.1:8000/video.mp4");
     let watermark_url = input.watermark_url.as_deref().unwrap_or("http://127.0.0.1:8000/watermark.png");
-    let ffmpeg_path = input.ffmpeg_path.as_deref().unwrap_or("/tmp/ffmpeg");
+    let ffmpeg_url = input.ffmpeg_url.as_deref().unwrap_or("http://127.0.0.1:8000/ffmpeg");
 
-    let ret_code = run(video_url, watermark_url, ffmpeg_path);
+    let ret_code = run(video_url, watermark_url, ffmpeg_url);
 
     if ret_code == 0 {
         "Success: Extracted GIF and applied watermark.".to_string()

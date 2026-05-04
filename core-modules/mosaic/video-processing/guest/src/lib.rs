@@ -6,7 +6,7 @@ use proxy_guest::export_mosaic_function;
 struct VideoProcessingInput {
     video_url: Option<String>,
     watermark_url: Option<String>,
-    ffmpeg_path: Option<String>,
+    ffmpeg_url: Option<String>,
 }
 
 
@@ -15,22 +15,39 @@ unsafe extern "C" {
     // Downloads from URL directly to a file path on the host. Returns bytes written or 0 on error.
     fn host_download_to_file(url_ptr: *const u8, url_len: u32, path_ptr: *const u8, path_len: u32) -> u32;
 
+    // Checks whether the file exists.
+    fn host_file_exists(path_ptr: *const u8, path_len: u32) -> u32;
+
     // Executes a shell command on the host OS.
     fn host_run_command(cmd_ptr: *const u8, cmd_len: u32) -> u32;
 }
 
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: VideoProcessingInput = serde_json::from_str(input_json).unwrap_or(VideoProcessingInput { video_url: None, watermark_url: None, ffmpeg_path: None });
+    let input: VideoProcessingInput = serde_json::from_str(input_json).unwrap_or(VideoProcessingInput { video_url: None, watermark_url: None, ffmpeg_url: None });
     let video_url = input.video_url.as_deref().unwrap_or("http://127.0.0.1:8000/video.mp4");
     let watermark_url = input.watermark_url.as_deref().unwrap_or("http://127.0.0.1:8000/watermark.png");
-    let ffmpeg_path = input.ffmpeg_path.as_deref().unwrap_or("/tmp/ffmpeg");
+    let ffmpeg_url = input.ffmpeg_url.as_deref().unwrap_or("http://127.0.0.1:8000/ffmpeg");
 
     let video_path = "/tmp/video.mp4";
     let watermark_path = "/tmp/watermark.png";
+    let ffmpeg_path = "/tmp/ffmpeg";
     let gif_output_path = "/tmp/processed.gif";
     let watermark_output_path = "/tmp/watermarked.mp4";
 
     // Downloading.
+    unsafe {
+        if host_file_exists(ffmpeg_path.as_ptr(), ffmpeg_path.len() as u32) == 0 {
+            if host_download_to_file(ffmpeg_url.as_ptr(), ffmpeg_url.len() as u32, ffmpeg_path.as_ptr(), ffmpeg_path.len() as u32) == 0 {
+                return "Error: Failed to download FFmpeg.".to_string();
+            }
+
+            let cmd_chmod = format!("chmod +x {}", ffmpeg_path);
+            if host_run_command(cmd_chmod.as_ptr(), cmd_chmod.len() as u32) != 0 {
+                return "Error: Failed to set executable permissions on FFmpeg.".to_string();
+            }
+        }
+    }
+
     let video_size = unsafe {
         host_download_to_file(
             video_url.as_ptr(), video_url.len() as u32,

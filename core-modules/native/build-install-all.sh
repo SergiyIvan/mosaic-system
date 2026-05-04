@@ -40,7 +40,7 @@ for profile in "${PROFILES[@]}"; do
         bench_dir="$(DIR)/$bench"
         echo ""
         echo "  Building $bench"
-        (cd "$bench_dir" && rm -r Cargo.lock target)
+        (cd "$bench_dir" && rm -rf Cargo.lock target)
         (cd "$bench_dir" && cargo "build-$profile")
         cp "$bench_dir/target/release/"*.so "$PROFILE_OUT_DIR"
     done

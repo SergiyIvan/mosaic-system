@@ -5,9 +5,9 @@ use std::time::{Duration, Instant};
 fn run_cli() -> u32 {
     let video_url = "http://127.0.0.1:8000/video.mp4";
     let watermark_url = "http://127.0.0.1:8000/watermark.png";
-    let ffmpeg_path = "/tmp/ffmpeg";
+    let ffmpeg_url = "http://127.0.0.1:8000/ffmpeg";
 
-    let ret_code = run(video_url, watermark_url, ffmpeg_path);
+    let ret_code = run(video_url, watermark_url, ffmpeg_url);
 
     if ret_code != 0 {
         eprintln!("Error: Failed to process video.");
