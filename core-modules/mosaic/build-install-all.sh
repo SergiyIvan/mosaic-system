@@ -58,11 +58,10 @@ for profile in "${PROFILES[@]}"; do
         # Skip if not a directory.
         [ -d "$tramp_dir" ] || continue
 
-        tramp_name=$(basename "$tramp_dir")
-        echo "  Building Trampoline: $tramp_name"
+        echo "  Building Trampoline: $(basename "$tramp_dir")"
 
-        # (cd "$tramp_dir" && rm -r Cargo.lock target)
-        (cd "$tramp_dir" && cargo "build-$profile")
+        (cd "$tramp_dir" && rm -r Cargo.lock target)
+        (cd "$tramp_dir" && bash build.sh "$profile")
         cp "$tramp_dir/target/release/"*.so "$PROFILE_OUT_DIR"
     done
 done
