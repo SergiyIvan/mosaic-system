@@ -60,7 +60,7 @@ for profile in "${PROFILES[@]}"; do
 
         echo "  Building Trampoline: $(basename "$tramp_dir")"
 
-        (cd "$tramp_dir" && rm -r Cargo.lock target)
+        (cd "$tramp_dir" && rm -rf Cargo.lock target)
         (cd "$tramp_dir" && bash build.sh "$profile")
         cp "$tramp_dir/target/release/"*.so "$PROFILE_OUT_DIR"
     done
