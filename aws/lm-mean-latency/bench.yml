@@ -1,0 +1,136 @@
+---
+- name: Setup Infrastructure and Dependencies
+  hosts: all
+  become: yes
+  strategy: free
+  tasks:
+    - name: Update apt and install dependencies
+      apt:
+        name:
+          - git
+          - docker.io
+          - curl
+          - unzip
+          - awscli
+          - openjdk-17-jdk
+          - apache2-utils
+          - build-essential
+          - netcat-openbsd
+        state: present
+        update_cache: yes
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Reset ssh connection to allow user changes to affect docker
+      meta: reset_connection
+
+- name: Build, Provision, and Benchmark
+  hosts: all
+  become: no
+  strategy: free
+  vars:
+    sys_repo: "/home/ubuntu/mosaic-system"
+    plat_repo: "/home/ubuntu/mosaic-platform"
+    s3_bucket: "{{ s3_bucket }}"
+
+  tasks:
+    # Clone repos.
+    - name: Clone mosaic-system
+      git:
+        repo: "https://{{ github_token }}@github.com/SergiyIvan/mosaic-system.git"
+        dest: "{{ sys_repo }}"
+        force: yes
+
+    - name: Clone mosaic-platform
+      git:
+        repo: "https://{{ github_token }}@github.com/SergiyIvan/mosaic-platform.git"
+        dest: "{{ plat_repo }}"
+        force: yes
+
+    # Setup Rust & Wasm target.
+    - name: Install Rust
+      shell: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+      args:
+        creates: "/home/ubuntu/.cargo/bin/rustc"
+
+    - name: Add wasm32-wasip1 target
+      shell: "source /home/ubuntu/.cargo/env && rustup target add wasm32-wasip1"
+      args:
+        executable: /bin/bash
+
+    # Build Lambda Manager.
+    - name: Build Lambda Manager
+      shell: "bash build.sh"
+      args:
+        chdir: "{{ plat_repo }}/lambda-manager"
+
+    # Build container images.
+    - name: Build Builder image
+      shell: "bash build_container_image.sh"
+      args:
+        chdir: "{{ plat_repo }}/images/builder"
+
+    - name: Build Mosaic proxy image
+      shell: "source /home/ubuntu/.cargo/env && bash build_container_image.sh"
+      args:
+        chdir: "{{ plat_repo }}/images/mosaic"
+        executable: /bin/bash
+
+    - name: Build Native proxy image
+      shell: "source /home/ubuntu/.cargo/env && bash build_container_image.sh"
+      args:
+        chdir: "{{ plat_repo }}/images/native"
+        executable: /bin/bash
+
+    # Network & webserver.
+    - name: Create network bridge
+      shell: "bash create_bridge.sh"
+      args:
+        chdir: "{{ plat_repo }}/lambda-manager/src/scripts"
+
+    - name: Start data webserver
+      shell: "bash start-webserver.sh"
+      args:
+        chdir: "{{ sys_repo }}/data"
+
+    # Fetch optimized FFmpeg from S3.
+    - name: Download optimized FFmpeg to data folder
+      shell: "aws s3 cp s3://{{ s3_bucket }}/{{ machine_folder }}/ffmpeg/native/ffmpeg ./ffmpeg_optimized && chmod +x ffmpeg_optimized"
+      args:
+        chdir: "{{ sys_repo }}/data"
+
+    # Build benchmarks.
+    - name: Build Mosaic benchmarks
+      shell: "bash build-install-all.sh"
+      args:
+        chdir: "{{ sys_repo }}/core-modules/mosaic"
+
+    - name: Build Native benchmarks
+      shell: "bash build-install-all.sh"
+      args:
+        chdir: "{{ sys_repo }}/core-modules/native"
+
+    # Run Lambda Manager test.
+    - name: Run latency test
+      shell: "bash test.sh"
+      args:
+        chdir: "{{ plat_repo }}/lambda-manager/tests/ab-latency-benchmark"
+        executable: /bin/bash
+
+    # Fetch results.
+    - name: Find all log results
+      find:
+        paths: "{{ plat_repo }}/lambda-manager/tests/ab-latency-benchmark/ab-results"
+        patterns: "*.log"
+      register: log_files
+
+    - name: Fetch results back to local machine
+      fetch:
+        src: "{{ item.path }}"
+        dest: "./results/{{ inventory_hostname }}/"
+        flat: yes
+      loop: "{{ log_files.files }}"
