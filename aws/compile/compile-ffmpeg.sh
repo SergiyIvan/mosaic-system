@@ -46,12 +46,15 @@ for CONFIG in $CONFIGS; do
     # Clean previous builds.
     make clean || true
 
-    # Configure and build.
+    # Configure and build with GPL and x264 enabled.
     ./configure \
         --pkg-config-flags="--static" \
         --extra-cflags="$OPT_FLAGS" \
         --extra-cxxflags="$OPT_FLAGS" \
         --extra-ldexeflags="-static" \
+        --enable-gpl \
+        --enable-libx264 \
+        --enable-zlib \
         --disable-doc
 
     make -j$(nproc)

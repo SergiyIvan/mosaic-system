@@ -16,6 +16,8 @@
           - apache2-utils
           - build-essential
           - netcat-openbsd
+          - pkg-config
+          - libssl-dev
         state: present
         update_cache: yes
 
@@ -105,18 +107,20 @@
 
     # Build benchmarks.
     - name: Build Mosaic benchmarks
-      shell: "bash build-install-all.sh"
+      shell: "source /home/ubuntu/.cargo/env && bash build-install-all.sh"
       args:
         chdir: "{{ sys_repo }}/core-modules/mosaic"
+        executable: /bin/bash
 
     - name: Build Native benchmarks
-      shell: "bash build-install-all.sh"
+      shell: "source /home/ubuntu/.cargo/env && bash build-install-all.sh"
       args:
         chdir: "{{ sys_repo }}/core-modules/native"
+        executable: /bin/bash
 
     # Run Lambda Manager test.
     - name: Run latency test
-      shell: "bash test.sh"
+      shell: "export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java)))) && bash test.sh"
       args:
         chdir: "{{ plat_repo }}/lambda-manager/tests/ab-latency-benchmark"
         executable: /bin/bash

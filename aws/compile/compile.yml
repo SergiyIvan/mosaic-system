@@ -8,9 +8,17 @@
     repo_dir: "/home/ubuntu/mosaic-system"
 
   tasks:
-    - name: Install dependencies (including zip and awscli)
+    - name: Install dependencies
       apt:
-        name: ['git', 'build-essential', 'curl', 'awscli', 'nasm']
+        name:
+          - git
+          - build-essential
+          - curl
+          - awscli
+          - nasm
+          - pkg-config
+          - zlib1g-dev
+          - libx264-dev
         state: present
         update_cache: yes
 
@@ -25,15 +33,15 @@
     target_benchmarks: "{{ target_benchmarks | default('') }}"
 
   tasks:
-    - name: Install Rust toolchain
-      shell: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
-      args:
-        creates: "/home/ubuntu/.cargo/bin/rustc"
+    # - name: Install Rust toolchain
+    #   shell: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+    #   args:
+    #     creates: "/home/ubuntu/.cargo/bin/rustc"
 
-    - name: Add WebAssembly target
-      shell: "source /home/ubuntu/.cargo/env && rustup target add wasm32-wasip1"
-      args:
-        executable: /bin/bash
+    # - name: Add WebAssembly target
+    #   shell: "source /home/ubuntu/.cargo/env && rustup target add wasm32-wasip1"
+    #   args:
+    #     executable: /bin/bash
 
     - name: Clone private repository
       git:
@@ -41,21 +49,21 @@
         dest: "{{ repo_dir }}"
         force: yes
 
-    - name: Execute native compilation script
-      shell: |
-        source /home/ubuntu/.cargo/env
-        bash compile-native.sh "{{ configs }}" "{{ s3_bucket }}" "{{ inventory_hostname }}" "{{ target_benchmarks }}"
-      args:
-        chdir: "{{ repo_dir }}/aws/compile"
-        executable: /bin/bash
+    # - name: Execute native compilation script
+    #   shell: |
+    #     source /home/ubuntu/.cargo/env
+    #     bash compile-native.sh "{{ configs }}" "{{ s3_bucket }}" "{{ inventory_hostname }}" "{{ target_benchmarks }}"
+    #   args:
+    #     chdir: "{{ repo_dir }}/aws/compile"
+    #     executable: /bin/bash
 
-    - name: Execute mosaic compilation script
-      shell: |
-        source /home/ubuntu/.cargo/env
-        bash compile-mosaic.sh "{{ configs }}" "{{ s3_bucket }}" "{{ inventory_hostname }}" "{{ target_benchmarks }}"
-      args:
-        chdir: "{{ repo_dir }}/aws/compile"
-        executable: /bin/bash
+    # - name: Execute mosaic compilation script
+    #   shell: |
+    #     source /home/ubuntu/.cargo/env
+    #     bash compile-mosaic.sh "{{ configs }}" "{{ s3_bucket }}" "{{ inventory_hostname }}" "{{ target_benchmarks }}"
+    #   args:
+    #     chdir: "{{ repo_dir }}/aws/compile"
+    #     executable: /bin/bash
 
     - name: Execute FFmpeg compilation script
       shell: |
