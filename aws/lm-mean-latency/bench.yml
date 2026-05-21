@@ -138,3 +138,9 @@
         dest: "./results/{{ inventory_hostname }}/"
         flat: yes
       loop: "{{ log_files.files }}"
+
+    - name: Fetch Lambda Manager log back to local machine
+      fetch:
+        src: "{{ plat_repo }}/lambda-manager/manager_logs/lambda_manager.log"
+        dest: "./results/{{ inventory_hostname }}/"
+        flat: yes
