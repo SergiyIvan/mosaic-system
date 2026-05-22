@@ -4,6 +4,10 @@
   become: yes
   strategy: free
   tasks:
+    - name: Wait for cloud-init to finish setting up apt
+      command: cloud-init status --wait
+      changed_when: false
+
     - name: Update apt and install dependencies
       apt:
         name:
