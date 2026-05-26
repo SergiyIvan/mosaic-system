@@ -11,11 +11,9 @@ struct DynamicHtmlInput {
     url: Option<String>,
     username: Option<String>,
     random_len: Option<usize>,
+    template_size: Option<usize>,
+    html_size: Option<usize>,
 }
-
-
-const MAX_TEMPLATE_SIZE: usize = 1 * 1024; // 1 KB
-const MAX_HTML_SIZE: usize = 100 * 1024 * 1024; // 100 MB
 
 
 fn download(url: &str, out_buf: &mut [u8]) -> usize {
@@ -75,7 +73,7 @@ fn render(template_data: &[u8], username: &str, random_numbers: &[u32], out_buf:
     }
 }
 
-pub fn run(url: &str, username: &str, random_len: usize) -> u32 {
+pub fn run(url: &str, username: &str, random_len: usize, template_size: usize, html_size: usize) -> u32 {
     // Generating random numbers.
     let mut random_numbers = vec![0u32; random_len];
     let mut rng = rand::thread_rng();
@@ -83,46 +81,51 @@ pub fn run(url: &str, username: &str, random_len: usize) -> u32 {
         *n = rng.gen_range(0..1_000_000);
     }
 
+    let mut template_buf = Vec::with_capacity(template_size);
+    let mut html_buf = Vec::with_capacity(html_size);
+    unsafe {
+        template_buf.set_len(template_size);
+        html_buf.set_len(html_size);
+    }
+
     // Downloading template.
-    let mut template_buf = vec![0u8; MAX_TEMPLATE_SIZE];
+    let template_size_result = download(url, &mut template_buf);
 
-    let template_size = download(url, &mut template_buf);
-
-    if template_size == 0 {
+    if template_size_result == 0 {
         eprintln!("Failed to download template.");
         return 0;
     }
 
-    let mut html_buf = vec![0u8; MAX_HTML_SIZE];
-
     // Rendering HTML.
-    let html_size = render(
-        &template_buf[..template_size],
+    let html_size_result = render(
+        &template_buf[..template_size_result],
         username,
         &random_numbers,
         &mut html_buf
     );
 
-    if html_size == 0 {
+    if html_size_result == 0 {
         eprintln!("Failed to render HTML.");
         return 0;
     }
 
-    html_size as u32
+    html_size_result as u32
 }
 
 
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: DynamicHtmlInput = serde_json::from_str(input_json).unwrap_or(DynamicHtmlInput { url: None, username: None, random_len: None });
+    let input: DynamicHtmlInput = serde_json::from_str(input_json).unwrap_or(DynamicHtmlInput { url: None, username: None, random_len: None, template_size: None, html_size: None });
 
     let url = input.url.as_deref().unwrap_or("http://127.0.0.1:8000/template.html");
     let username = input.username.as_deref().unwrap_or("rbruno");
     let random_len = input.random_len.unwrap_or(1_000_000);
+    let template_size = input.template_size.unwrap_or(1024);
+    let html_size = input.html_size.unwrap_or(33000000);
 
-    let html_size = run(url, username, random_len);
+    let html_size_result = run(url, username, random_len, template_size, html_size);
 
-    if html_size > 0 {
-        format!("Success: Generated HTML with {} bytes.", html_size)
+    if html_size_result > 0 {
+        format!("Success: Generated HTML with {} bytes.", html_size_result)
     } else {
         "Error: Failed to generate HTML.".to_string()
     }

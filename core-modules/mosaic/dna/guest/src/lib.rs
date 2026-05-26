@@ -4,6 +4,8 @@ use proxy_guest::export_mosaic_function;
 #[derive(Deserialize)]
 struct DnaInput {
     url: Option<String>,
+    fasta_size: Option<usize>,
+    json_size: Option<usize>,
 }
 
 
@@ -18,41 +20,43 @@ unsafe extern "C" {
     ) -> u32;
 }
 
-const MAX_FASTA_SIZE: usize = 5 * 1024 * 1024; // 5 MB input.
-const MAX_JSON_SIZE: usize = 155 * 1024 * 1024; // 155 MB output.
-
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: DnaInput = serde_json::from_str(input_json).unwrap_or(DnaInput { url: None });
+    let input: DnaInput = serde_json::from_str(input_json).unwrap_or(DnaInput { url: None, fasta_size: None, json_size: None });
     let url = input.url.as_deref().unwrap_or("http://127.0.0.1:8000/bacillus_subtilis.fasta");
+    let fasta_size = input.fasta_size.unwrap_or(4500000);
+    let json_size = input.json_size.unwrap_or(158000000);
+
+    let mut fasta_buf = Vec::with_capacity(fasta_size);
+    let mut json_buf = Vec::with_capacity(json_size);
+    unsafe {
+        fasta_buf.set_len(fasta_size);
+        json_buf.set_len(json_size);
+    }
 
     // Downloading.
-    let mut fasta_buf = vec![0u8; MAX_FASTA_SIZE];
-
-    let fasta_size = unsafe {
+    let fasta_size_result = unsafe {
         host_download(
             url.as_ptr(), url.len() as u32,
-            fasta_buf.as_mut_ptr(), MAX_FASTA_SIZE as u32
+            fasta_buf.as_mut_ptr(), fasta_size as u32
         )
     };
 
-    if fasta_size == 0 {
+    if fasta_size_result == 0 {
         return "Error: Failed to download FASTA sequence.".to_string();
     }
 
     // DNA Visualization.
-    let mut json_buf = vec![0u8; MAX_JSON_SIZE];
-
-    let json_size = unsafe {
+    let json_size_res = unsafe {
         host_squiggle_transform(
-            fasta_buf.as_ptr(), fasta_size,
-            json_buf.as_mut_ptr(), MAX_JSON_SIZE as u32
+            fasta_buf.as_ptr(), fasta_size_result,
+            json_buf.as_mut_ptr(), json_size as u32
         )
     };
 
-    if json_size == 0 {
+    if json_size_res == 0 {
         "Error: Squiggle transformation failed or buffer too small.".to_string()
     } else {
-        format!("Success: Squiggle transformation generated JSON with {} bytes.", json_size)
+        format!("Success: Squiggle transformation generated JSON with {} bytes.", json_size_res)
     }
 }
 

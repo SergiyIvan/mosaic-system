@@ -5,8 +5,9 @@ use std::time::{Duration, Instant};
 fn run_cli() -> u32 {
     let download_url = "http://127.0.0.1:8000/video.mp4";
     let upload_url = "http://127.0.0.1:9696/upload";
+    let file_size = 2 * 1024 * 1024;
 
-    let response_code = run(download_url, upload_url);
+    let response_code = run(download_url, upload_url, file_size);
 
     if response_code != 201 && response_code != 409 {
         eprintln!("Failed to upload input. Response code: {}", response_code);

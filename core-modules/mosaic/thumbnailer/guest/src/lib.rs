@@ -7,6 +7,7 @@ struct ThumbnailerInput {
     url: Option<String>,
     target_width: Option<u32>,
     target_height: Option<u32>,
+    file_size: Option<usize>,
 }
 
 
@@ -23,22 +24,28 @@ unsafe extern "C" {
     ) -> u32;
 }
 
-const MAX_IMAGE_SIZE: usize = 15 * 1024 * 1024; // 15 MB.
-
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: ThumbnailerInput = serde_json::from_str(input_json).unwrap_or(ThumbnailerInput { url: None, target_width: None, target_height: None });
+    let input: ThumbnailerInput = serde_json::from_str(input_json).unwrap_or(ThumbnailerInput { url: None, target_width: None, target_height: None, file_size: None });
+
     let url = input.url.as_deref().unwrap_or("http://127.0.0.1:8000/snap.png");
     let target_width = input.target_width.unwrap_or(200);
     let target_height = input.target_height.unwrap_or(200);
+    let file_size = input.file_size.unwrap_or(1 * 1024 * 1024); // Fallback to 1MB.
 
-    let mut download_buf = vec![0u8; MAX_IMAGE_SIZE];
-    let mut resize_buf = vec![0u8; MAX_IMAGE_SIZE];
+    let mut download_buf = Vec::with_capacity(file_size);
+    let mut resize_buf = Vec::with_capacity(file_size);
+
+    // Force Rust to treat the capacity as the actual length for the FFI boundary.
+    unsafe {
+        download_buf.set_len(file_size);
+        resize_buf.set_len(file_size);
+    }
 
     // Download Phase.
     let download_size = unsafe {
         host_download(
             url.as_ptr(), url.len() as u32,
-            download_buf.as_mut_ptr(), MAX_IMAGE_SIZE as u32
+            download_buf.as_mut_ptr(), file_size as u32
         )
     };
 
@@ -51,7 +58,7 @@ pub fn proxy_handler(input_json: &str) -> String {
         host_resize(
             download_buf.as_ptr(), download_size,
             target_width, target_height,
-            resize_buf.as_mut_ptr(), MAX_IMAGE_SIZE as u32
+            resize_buf.as_mut_ptr(), file_size as u32 // Assuming output is smaller/equal to input.
         )
     };
 

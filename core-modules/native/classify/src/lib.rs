@@ -10,10 +10,10 @@ struct ClassifyInput {
     model_url: Option<String>,
     image_url: Option<String>,
     labels_url: Option<String>,
+    model_file_size: Option<usize>,
+    image_file_size: Option<usize>,
+    labels_file_size: Option<usize>,
 }
-
-
-const MAX_IMAGE_SIZE: usize = 10 * 1024 * 1024;  // 10 MB
 
 
 fn download(url: &str, out_buf: &mut [u8]) -> usize {
@@ -133,11 +133,14 @@ fn infer(model_slice: &[u8], img_slice: &[u8]) -> u32 {
     max_idx as u32
 }
 
-pub fn run(model_url: &str, image_url: &str, labels_url: &str) -> String {
+pub fn run(model_url: &str, image_url: &str, labels_url: &str, _model_file_size: usize, image_file_size: usize, _labels_file_size: usize) -> String {
     let model_path = "/tmp/resnet50.onnx";
     let labels_path = "/tmp/resnet_labels.txt";
 
-    let mut img_buf = vec![0u8; MAX_IMAGE_SIZE];
+    let mut img_buf = Vec::with_capacity(image_file_size);
+    unsafe {
+        img_buf.set_len(image_file_size);
+    }
 
     // Model - check cache, download, and load to memory buffer.
     if !std::path::Path::new(model_path).exists() {
@@ -171,13 +174,16 @@ pub fn run(model_url: &str, image_url: &str, labels_url: &str) -> String {
 
 
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: ClassifyInput = serde_json::from_str(input_json).unwrap_or(ClassifyInput { model_url: None, image_url: None, labels_url: None });
+    let input: ClassifyInput = serde_json::from_str(input_json).unwrap_or(ClassifyInput { model_url: None, image_url: None, labels_url: None, model_file_size: None, image_file_size: None, labels_file_size: None });
 
     let model_url = input.model_url.as_deref().unwrap_or("http://127.0.0.1:8000/resnet50.onnx");
     let image_url = input.image_url.as_deref().unwrap_or("http://127.0.0.1:8000/eagle.jpg");
     let labels_url = input.labels_url.as_deref().unwrap_or("http://127.0.0.1:8000/resnet_labels.txt");
+    let model_file_size = input.model_file_size.unwrap_or(100 * 1024 * 1024); // Fallback to 100 MB.
+    let image_file_size = input.image_file_size.unwrap_or(10 * 1024); // Fallback to 10 KB.
+    let labels_file_size = input.labels_file_size.unwrap_or(15 * 1024); // Fallback to 15 KB.
 
-    let class_name = run(model_url, image_url, labels_url);
+    let class_name = run(model_url, image_url, labels_url, model_file_size, image_file_size, labels_file_size);
 
     if class_name.is_empty() {
         "Error: Classify failed or returned 0 index!".to_string()

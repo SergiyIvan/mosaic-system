@@ -4,8 +4,10 @@ use std::time::{Duration, Instant};
 
 fn run_cli() -> u32 {
     let url = "http://127.0.0.1:8000/bacillus_subtilis.fasta";
+    let fasta_size = 4500000;
+    let json_size = 158000000;
 
-    let json_size = run(url);
+    let json_size = run(url, fasta_size, json_size);
 
     if json_size == 0 {
         eprintln!("Squiggle transformation failed or buffer too small.");

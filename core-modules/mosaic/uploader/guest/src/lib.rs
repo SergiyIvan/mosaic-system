@@ -6,6 +6,7 @@ use proxy_guest::export_mosaic_function;
 struct UploaderInput {
     download_url: Option<String>,
     upload_url: Option<String>,
+    file_size: Option<usize>,
 }
 
 
@@ -23,21 +24,23 @@ unsafe extern "C" {
     ) -> u32;
 }
 
-const MAX_FILE_SIZE: usize = 5 * 1024 * 1024; // 5 MB
-
 
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: UploaderInput = serde_json::from_str(input_json).unwrap_or(UploaderInput { download_url: None, upload_url: None });
+    let input: UploaderInput = serde_json::from_str(input_json).unwrap_or(UploaderInput { download_url: None, upload_url: None, file_size: None });
     let download_url = input.download_url.as_deref().unwrap_or("http://127.0.0.1:8000/video.mp4");
     let upload_url = input.upload_url.as_deref().unwrap_or("http://127.0.0.1:9696/upload");
+    let file_size = input.file_size.unwrap_or(2 * 1024 * 1024); // Fallback to 2MB.
+
+    let mut media_buf = Vec::with_capacity(file_size);
+    unsafe {
+        media_buf.set_len(file_size);
+    }
 
     // Downloading.
-    let mut media_buf = vec![0u8; MAX_FILE_SIZE];
-
     let downloaded_size = unsafe {
         host_download(
             download_url.as_ptr(), download_url.len() as u32,
-            media_buf.as_mut_ptr(), MAX_FILE_SIZE as u32
+            media_buf.as_mut_ptr(), file_size as u32
         )
     };
 

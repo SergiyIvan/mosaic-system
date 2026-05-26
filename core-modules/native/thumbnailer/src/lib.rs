@@ -9,10 +9,8 @@ struct ThumbnailerInput {
     url: Option<String>,
     target_width: Option<u32>,
     target_height: Option<u32>,
+    file_size: Option<usize>,
 }
-
-
-const MAX_IMAGE_SIZE: usize = 15 * 1024 * 1024; // 15 MB
 
 
 fn download(url: &str, out_buf: &mut [u8]) -> usize {
@@ -67,9 +65,16 @@ fn resize(in_data: &[u8], w: u32, h: u32, out_buf: &mut [u8]) -> u32 {
     }
 }
 
-pub fn run(url: &str, target_width: u32, target_height: u32) -> u32 {
+pub fn run(url: &str, target_width: u32, target_height: u32, file_size: usize) -> u32 {
     // Downloading.
-    let mut download_buf = vec![0u8; MAX_IMAGE_SIZE];
+    let mut download_buf = Vec::with_capacity(file_size);
+    let mut resize_buf = Vec::with_capacity(file_size);
+
+    unsafe {
+        download_buf.set_len(file_size);
+        resize_buf.set_len(file_size);
+    }
+
     let download_size = download(url, &mut download_buf);
 
     if download_size == 0 {
@@ -78,7 +83,6 @@ pub fn run(url: &str, target_width: u32, target_height: u32) -> u32 {
     }
 
     // Resizing.
-    let mut resize_buf = vec![0u8; MAX_IMAGE_SIZE];
     let resized_size = resize(
         &download_buf[..download_size],
         target_width,
@@ -96,13 +100,14 @@ pub fn run(url: &str, target_width: u32, target_height: u32) -> u32 {
 
 
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: ThumbnailerInput = serde_json::from_str(input_json).unwrap_or(ThumbnailerInput { url: None, target_width: None, target_height: None });
+    let input: ThumbnailerInput = serde_json::from_str(input_json).unwrap_or(ThumbnailerInput { url: None, target_width: None, target_height: None, file_size: None });
 
     let url = input.url.as_deref().unwrap_or("http://127.0.0.1:8000/snap.png");
     let target_width = input.target_width.unwrap_or(200);
     let target_height = input.target_height.unwrap_or(200);
+    let file_size = input.file_size.unwrap_or(1 * 1024 * 1024);
 
-    let resized_size = run(url, target_width, target_height);
+    let resized_size = run(url, target_width, target_height, file_size);
 
     if resized_size != 0 {
         format!("Success: Generated thumbnail of {} bytes.", resized_size)

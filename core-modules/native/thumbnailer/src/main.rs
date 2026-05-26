@@ -6,8 +6,9 @@ fn run_cli() -> u32 {
     let url = "http://127.0.0.1:8000/snap.png";
     let target_width = 200;
     let target_height = 200;
+    let file_size = 50000;
 
-    let resized_size = run(url, target_width, target_height);
+    let resized_size = run(url, target_width, target_height, file_size);
 
     if resized_size == 0 {
         eprintln!("Error: Failed to resize image.");

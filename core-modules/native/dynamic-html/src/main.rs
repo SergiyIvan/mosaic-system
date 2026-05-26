@@ -6,10 +6,12 @@ fn run_cli() -> u32 {
     let url = "http://127.0.0.1:8000/template.html";
     let username = "rbruno";
     let random_len = 1_000_000;
+    let template_size = 1024;
+    let html_size = 33000000;
 
-    let html_size = run(url, username, random_len);
+    let html_size_result = run(url, username, random_len, template_size, html_size);
 
-    if html_size == 0 {
+    if html_size_result == 0 {
         eprintln!("Error: Failed to generate HTML.");
         return 1;
     }

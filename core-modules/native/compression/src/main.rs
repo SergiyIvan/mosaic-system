@@ -4,8 +4,9 @@ use std::time::{Duration, Instant};
 
 fn run_cli() -> u32 {
     let input_url = "http://127.0.0.1:8000/video.mp4";
+    let input_size = 2 * 1024 * 1024;
 
-    let compressed_size = run(input_url);
+    let compressed_size = run(input_url, input_size);
 
     if compressed_size == 0 {
         eprintln!("Compression failed.");

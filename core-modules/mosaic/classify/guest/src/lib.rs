@@ -7,6 +7,9 @@ struct ClassifyInput {
     model_url: Option<String>,
     image_url: Option<String>,
     labels_url: Option<String>,
+    model_file_size: Option<usize>,
+    image_file_size: Option<usize>,
+    labels_file_size: Option<usize>,
 }
 
 
@@ -26,23 +29,30 @@ unsafe extern "C" {
     ) -> u32;
 }
 
-const MAX_MODEL_SIZE: usize = 120 * 1024 * 1024; // 120 MB
-const MAX_IMAGE_SIZE: usize = 10 * 1024 * 1024;  // 10 MB
-const MAX_LABELS_SIZE: usize = 128 * 1024;       // 128 KB
 
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: ClassifyInput = serde_json::from_str(input_json).unwrap_or(ClassifyInput { model_url: None, image_url: None, labels_url: None });
+    let input: ClassifyInput = serde_json::from_str(input_json).unwrap_or(ClassifyInput { model_url: None, image_url: None, labels_url: None, model_file_size: None, image_file_size: None, labels_file_size: None });
     let model_url = input.model_url.as_deref().unwrap_or("http://127.0.0.1:8000/resnet50.onnx");
     let image_url = input.image_url.as_deref().unwrap_or("http://127.0.0.1:8000/eagle.jpg");
     let labels_url = input.labels_url.as_deref().unwrap_or("http://127.0.0.1:8000/resnet_labels.txt");
+    let model_file_size = input.model_file_size.unwrap_or(100 * 1024 * 1024); // Fallback to 100 MB.
+    let image_file_size = input.image_file_size.unwrap_or(10 * 1024); // Fallback to 10 KB.
+    let labels_file_size = input.labels_file_size.unwrap_or(15 * 1024); // Fallback to 15 KB.
 
     let model_path = "/tmp/resnet50.onnx";
     let labels_path = "/tmp/resnet_labels.txt";
 
     // Downloading.
-    let mut model_buf = vec![0u8; MAX_MODEL_SIZE];
-    let mut img_buf = vec![0u8; MAX_IMAGE_SIZE];
-    let mut labels_buf = vec![0u8; MAX_LABELS_SIZE];
+    let mut model_buf = Vec::with_capacity(model_file_size);
+    let mut img_buf = Vec::with_capacity(image_file_size);
+    let mut labels_buf = Vec::with_capacity(labels_file_size);
+
+    // Force Rust to treat the capacity as the actual length for the FFI boundary.
+    unsafe {
+        model_buf.set_len(model_file_size);
+        img_buf.set_len(image_file_size);
+        labels_buf.set_len(labels_file_size);
+    }
 
     // Model - download to disk if missing, then read into memory.
     unsafe {
@@ -50,7 +60,7 @@ pub fn proxy_handler(input_json: &str) -> String {
             host_download_to_file(model_url.as_ptr(), model_url.len() as u32, model_path.as_ptr(), model_path.len() as u32);
         }
     }
-    let model_size = unsafe { host_read_file(model_path.as_ptr(), model_path.len() as u32, model_buf.as_mut_ptr(), MAX_MODEL_SIZE as u32) };
+    let model_size = unsafe { host_read_file(model_path.as_ptr(), model_path.len() as u32, model_buf.as_mut_ptr(), model_file_size as u32) };
     if model_size == 0 { return "Error: Failed to load model.".to_string(); }
 
     // Labels - download to disk if missing, then read into memory.
@@ -59,11 +69,11 @@ pub fn proxy_handler(input_json: &str) -> String {
             host_download_to_file(labels_url.as_ptr(), labels_url.len() as u32, labels_path.as_ptr(), labels_path.len() as u32);
         }
     }
-    let labels_size = unsafe { host_read_file(labels_path.as_ptr(), labels_path.len() as u32, labels_buf.as_mut_ptr(), MAX_LABELS_SIZE as u32) };
+    let labels_size = unsafe { host_read_file(labels_path.as_ptr(), labels_path.len() as u32, labels_buf.as_mut_ptr(), labels_file_size as u32) };
     if labels_size == 0 { return "Error: Failed to load labels.".to_string(); }
 
     // Image - always download directly into memory.
-    let img_size = unsafe { host_download(image_url.as_ptr(), image_url.len() as u32, img_buf.as_mut_ptr(), MAX_IMAGE_SIZE as u32) };
+    let img_size = unsafe { host_download(image_url.as_ptr(), image_url.len() as u32, img_buf.as_mut_ptr(), image_file_size as u32) };
     if img_size == 0 { return "Error: Failed to download image.".to_string(); }
 
     // Classification.

@@ -5,6 +5,7 @@ use proxy_guest::export_mosaic_function;
 #[derive(Deserialize)]
 struct CompressionInput {
     input_url: Option<String>,
+    input_size: Option<usize>,
 }
 
 
@@ -21,20 +22,23 @@ unsafe extern "C" {
     ) -> u32;
 }
 
-const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024;  // 10 MB max input
-const MAX_OUTPUT_SIZE: usize = 10 * 1024 * 1024; // 10 MB max output
-
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: CompressionInput = serde_json::from_str(input_json).unwrap_or(CompressionInput { input_url: None });
+    let input: CompressionInput = serde_json::from_str(input_json).unwrap_or(CompressionInput { input_url: None, input_size: None });
     let input_url = input.input_url.as_deref().unwrap_or("http://127.0.0.1:8000/video.mp4");
+    let input_size = input.input_size.unwrap_or(2 * 1024 * 1024); // Fallback to 2MB.
 
     // Downloading.
-    let mut uncompressed_buf = vec![0u8; MAX_INPUT_SIZE];
+    let mut uncompressed_buf = Vec::with_capacity(input_size);
+    let mut compressed_buf = Vec::with_capacity(input_size);
+    unsafe {
+        uncompressed_buf.set_len(input_size);
+        compressed_buf.set_len(input_size);
+    }
 
     let uncompressed_size = unsafe {
         host_download(
             input_url.as_ptr(), input_url.len() as u32,
-            uncompressed_buf.as_mut_ptr(), MAX_INPUT_SIZE as u32
+            uncompressed_buf.as_mut_ptr(), input_size as u32
         )
     };
 
@@ -42,13 +46,10 @@ pub fn proxy_handler(input_json: &str) -> String {
         return "Error: Failed to download input.".to_string();
     }
 
-    // Compressing.
-    let mut compressed_buf = vec![0u8; MAX_OUTPUT_SIZE];
-
     let compressed_size = unsafe {
         host_compress(
             uncompressed_buf.as_ptr(), uncompressed_size,
-            compressed_buf.as_mut_ptr(), MAX_OUTPUT_SIZE as u32
+            compressed_buf.as_mut_ptr(), input_size as u32
         )
     };
 

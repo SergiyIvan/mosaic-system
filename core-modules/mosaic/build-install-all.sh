@@ -25,10 +25,15 @@ if [ ${#PROFILES[@]} -eq 0 ]; then
     PROFILES=("native" "default")
 fi
 
+TIME_SPANS_PATH_SUFFIX=""
+if [ -n "$TIME_SPANS" ]; then
+    TIME_SPANS_PATH_SUFFIX="-time-spans"
+fi
+
 DATA_DIR="$(DIR)/../../data/apps"
 GUESTS_DIR="$DATA_DIR/wasm"
 TRAMPOLINES_DIR="$DATA_DIR/trampoline"
-TRAMPOLINES_SRC_DIR="$(DIR)/trampolines"
+TRAMPOLINES_SRC_DIR="$(DIR)/trampolines$TIME_SPANS_PATH_SUFFIX"
 
 echo "Building and installing all benchmark guests."
 

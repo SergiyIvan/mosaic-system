@@ -8,6 +8,8 @@ struct DynamicHtmlInput {
     url: Option<String>,
     username: Option<String>,
     random_len: Option<usize>,
+    template_size: Option<usize>,
+    html_size: Option<usize>,
 }
 
 
@@ -26,15 +28,13 @@ unsafe extern "C" {
 }
 
 
-const MAX_TEMPLATE_SIZE: usize = 1 * 1024; // 1 KB
-const MAX_HTML_SIZE: usize = 100 * 1024 * 1024; // 100 MB
-
-
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: DynamicHtmlInput = serde_json::from_str(input_json).unwrap_or(DynamicHtmlInput { url: None, username: None, random_len: None });
+    let input: DynamicHtmlInput = serde_json::from_str(input_json).unwrap_or(DynamicHtmlInput { url: None, username: None, random_len: None, template_size: None, html_size: None });
     let url = input.url.as_deref().unwrap_or("http://127.0.0.1:8000/template.html");
     let username = input.username.as_deref().unwrap_or("rbruno");
     let random_len = input.random_len.unwrap_or(1_000_000);
+    let template_size = input.template_size.unwrap_or(1024);
+    let html_size = input.html_size.unwrap_or(33000000);
 
     // Generating random numbers.
     let mut random_numbers = vec![0u32; random_len];
@@ -43,34 +43,37 @@ pub fn proxy_handler(input_json: &str) -> String {
         *n = rng.gen_range(0..1_000_000);
     }
 
-    // Downloading template.
-    let mut template_buf = vec![0u8; MAX_TEMPLATE_SIZE];
+    let mut template_buf = Vec::with_capacity(template_size);
+    let mut html_buf = Vec::with_capacity(html_size);
+    unsafe {
+        template_buf.set_len(template_size);
+        html_buf.set_len(html_size);
+    }
 
-    let template_size = unsafe {
+    // Downloading template.
+    let template_size_result = unsafe {
         host_download(
             url.as_ptr(), url.len() as u32,
-            template_buf.as_mut_ptr(), MAX_TEMPLATE_SIZE as u32
+            template_buf.as_mut_ptr(), template_size as u32
         )
     };
 
-    if template_size == 0 {
+    if template_size_result == 0 {
         return "Error: Failed to download template.".to_string();
     }
 
     // Generating the HTML.
-    let mut html_buf = vec![0u8; MAX_HTML_SIZE];
-
-    let html_size = unsafe {
+    let html_size_result = unsafe {
         host_render(
-            template_buf.as_ptr(), template_size,
+            template_buf.as_ptr(), template_size_result,
             username.as_ptr(), username.len() as u32,
             random_numbers.as_ptr(), random_len as u32,
-            html_buf.as_mut_ptr(), MAX_HTML_SIZE as u32
+            html_buf.as_mut_ptr(), html_size as u32
         )
     };
 
-    if html_size > 0 {
-        format!("Success: Generated HTML with {} bytes.", html_size)
+    if html_size_result > 0 {
+        format!("Success: Generated HTML with {} bytes.", html_size_result)
     } else {
         "Error: Failed to generate HTML.".to_string()
     }

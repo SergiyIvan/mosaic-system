@@ -7,11 +7,9 @@ use proxy_guest::export_function;
 #[derive(Deserialize)]
 struct DnaInput {
     url: Option<String>,
+    fasta_size: Option<usize>,
+    json_size: Option<usize>,
 }
-
-
-const MAX_FASTA_SIZE: usize = 5 * 1024 * 1024; // 5 MB input.
-const MAX_JSON_SIZE: usize = 155 * 1024 * 1024; // 155 MB output.
 
 
 fn download(url: &str, out_buf: &mut [u8]) -> usize {
@@ -45,39 +43,46 @@ fn download(url: &str, out_buf: &mut [u8]) -> usize {
     total_bytes_read
 }
 
-pub fn run(url: &str) -> u32 {
-    // Downloading.
-    let mut fasta_buf = vec![0u8; MAX_FASTA_SIZE];
-    let fasta_size = download(url, &mut fasta_buf);
+pub fn run(url: &str, fasta_size: usize, json_size: usize) -> u32 {
+    let mut fasta_buf = Vec::with_capacity(fasta_size);
+    let mut json_buf = Vec::with_capacity(json_size);
+    unsafe {
+        fasta_buf.set_len(fasta_size);
+        json_buf.set_len(json_size);
+    }
 
-    if fasta_size == 0 {
+    // Downloading.
+    let fasta_size_result = download(url, &mut fasta_buf);
+
+    if fasta_size_result == 0 {
         eprintln!("Failed to download FASTA sequence.");
         return 0;
     }
 
     // DNA Visualization.
-    let mut json_buf = vec![0u8; MAX_JSON_SIZE];
-    let json_size = squiggle_transform(&fasta_buf[..fasta_size], &mut json_buf);
+    let json_size_result = squiggle_transform(&fasta_buf[..fasta_size_result], &mut json_buf);
 
-    if json_size == 0 {
+    if json_size_result == 0 {
         eprintln!("Squiggle transformation failed or buffer too small.");
     }
 
-    json_size as u32
+    json_size_result as u32
 }
 
 
 pub fn proxy_handler(input_json: &str) -> String {
-    let input: DnaInput = serde_json::from_str(input_json).unwrap_or(DnaInput { url: None });
+    let input: DnaInput = serde_json::from_str(input_json).unwrap_or(DnaInput { url: None, fasta_size: None, json_size: None });
 
     let url = input.url.as_deref().unwrap_or("http://127.0.0.1:8000/bacillus_subtilis.fasta");
+    let fasta_size = input.fasta_size.unwrap_or(4500000);
+    let json_size = input.json_size.unwrap_or(158000000);
 
-    let json_size = run(url);
+    let json_size_result = run(url, fasta_size, json_size);
 
-    if json_size == 0 as u32 {
+    if json_size_result == 0 as u32 {
         "Error: Squiggle transformation failed or buffer too small.".to_string()
     } else {
-        format!("Success: Squiggle transformation generated JSON with {} bytes.", json_size)
+        format!("Success: Squiggle transformation generated JSON with {} bytes.", json_size_result)
     }
 }
 

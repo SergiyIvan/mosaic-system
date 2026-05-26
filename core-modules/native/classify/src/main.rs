@@ -6,8 +6,11 @@ fn run_cli() -> u32 {
     let model_url = "http://127.0.0.1:8000/resnet50.onnx";
     let image_url = "http://127.0.0.1:8000/eagle.jpg";
     let labels_url = "http://127.0.0.1:8000/resnet_labels.txt";
+    let model_file_size = 100 * 1024 * 1024;
+    let image_file_size = 10 * 1024;
+    let labels_file_size = 15 * 1024;
 
-    let class_name = run(model_url, image_url, labels_url);
+    let class_name = run(model_url, image_url, labels_url, model_file_size, image_file_size, labels_file_size);
 
     if class_name.is_empty() {
         eprintln!("Error: Classify failed or returned 0 index!");

@@ -1,0 +1,21 @@
+[alias]
+build-default = "build --release"
+run-default   = "run --release"
+
+build-native = ["build", "--release", "--config", "build.rustflags=['-C', 'target-cpu=native']"]
+run-native   = ["run", "--release", "--config", "build.rustflags=['-C', 'target-cpu=native']"]
+
+build-native-128 = ["build", "--release", "--config", "build.rustflags=['-C', 'target-cpu=native', '-C', 'llvm-args=--force-vector-width=128']"]
+run-native-128   = ["run", "--release", "--config", "build.rustflags=['-C', 'target-cpu=native', '-C', 'llvm-args=--force-vector-width=128']"]
+
+build-native-256 = ["build", "--release", "--config", "build.rustflags=['-C', 'target-cpu=native', '-C', 'llvm-args=--force-vector-width=256']"]
+run-native-256   = ["run", "--release", "--config", "build.rustflags=['-C', 'target-cpu=native', '-C', 'llvm-args=--force-vector-width=256']"]
+
+build-x86-64-v3 = ["build", "--release", "--config", "build.rustflags=['-C', 'target-cpu=x86-64-v3']"]
+run-x86-64-v3   = ["run", "--release", "--config", "build.rustflags=['-C', 'target-cpu=x86-64-v3']"]
+
+build-neoverse-v1 = ["build", "--release", "--config", "build.rustflags=['-C', 'target-cpu=neoverse-v1']"]
+run-neoverse-v1   = ["run", "--release", "--config", "build.rustflags=['-C', 'target-cpu=neoverse-v1']"]
+
+build-neoverse-v2 = ["build", "--release", "--config", "build.rustflags=['-C', 'target-cpu=neoverse-v2']"]
+run-neoverse-v2   = ["run", "--release", "--config", "build.rustflags=['-C', 'target-cpu=neoverse-v2']"]
