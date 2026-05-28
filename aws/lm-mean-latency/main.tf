@@ -143,6 +143,12 @@ resource "aws_instance" "intel_c7i" {
   iam_instance_profile = aws_iam_instance_profile.ec2_s3_profile.name
   tags = { Name = "Mosaic-Bench-Intel-C7i" }
 
+  # Disable Hyperthreading.
+  cpu_options {
+    core_count       = 8
+    threads_per_core = 1
+  }
+
   # Storage.
   root_block_device {
     volume_size = 60
