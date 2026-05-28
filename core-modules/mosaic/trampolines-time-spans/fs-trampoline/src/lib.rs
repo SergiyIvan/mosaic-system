@@ -24,7 +24,14 @@ pub unsafe extern "C" fn trampoline_dispatch(
                 let path_slice = std::slice::from_raw_parts(mem_base.add(path_ptr), path_len);
                 let path_str = std::str::from_utf8(path_slice).unwrap_or("");
 
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
+
                 *ret_ptr = if std::path::Path::new(path_str).exists() { 1 } else { 0 };
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_FileExists | DurationUs: {}", start_compute.elapsed().as_micros());
+
                 true
             }
             "host_read_file" => {
@@ -38,6 +45,9 @@ pub unsafe extern "C" fn trampoline_dispatch(
 
                 let path_slice = std::slice::from_raw_parts(mem_base.add(path_ptr), path_len);
                 let path_str = std::str::from_utf8(path_slice).unwrap_or("");
+
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
 
                 let mut file = match std::fs::File::open(path_str) {
                     Ok(f) => f,
@@ -67,6 +77,10 @@ pub unsafe extern "C" fn trampoline_dispatch(
                 }
 
                 *ret_ptr = total_bytes_read as u64;
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_ReadFile | DurationUs: {}", start_compute.elapsed().as_micros());
+
                 true
             }
             _ => false, // Unknown function requested.

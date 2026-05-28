@@ -120,8 +120,15 @@ pub unsafe extern "C" fn trampoline_dispatch(
 
                 let out_slice = std::slice::from_raw_parts_mut(mem_base.add(out_ptr), max_len);
 
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
+
                 let bytes_read = download(url_str, out_slice);
                 *ret_ptr = bytes_read as u64;
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_Download | DurationUs: {}", start_compute.elapsed().as_micros());
+
                 true
             }
             "host_upload" => {
@@ -146,8 +153,15 @@ pub unsafe extern "C" fn trampoline_dispatch(
                 let filename_slice = std::slice::from_raw_parts(mem_base.add(filename_ptr), filename_len);
                 let filename_str = std::str::from_utf8(filename_slice).unwrap_or("file.bin");
 
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
+
                 let status_code = upload(url_str, data_slice, filename_str);
                 *ret_ptr = status_code as u64;
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_Upload | DurationUs: {}", start_compute.elapsed().as_micros());
+
                 true
             }
             "host_download_to_file" => {
@@ -167,8 +181,15 @@ pub unsafe extern "C" fn trampoline_dispatch(
                 let path_slice = std::slice::from_raw_parts(mem_base.add(path_ptr), path_len);
                 let path_str = std::str::from_utf8(path_slice).unwrap_or("");
 
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
+
                 let bytes_written = download_to_file(url_str, path_str);
                 *ret_ptr = bytes_written as u64;
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_DownloadToFile | DurationUs: {}", start_compute.elapsed().as_micros());
+
                 true
             }
             _ => false, // Unknown function requested.

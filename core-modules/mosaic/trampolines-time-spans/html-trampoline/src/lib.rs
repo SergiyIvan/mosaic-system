@@ -79,6 +79,10 @@ pub unsafe extern "C" fn trampoline_dispatch(
                 let rand_slice = std::slice::from_raw_parts(mem_base.add(rand_ptr) as *const u32, rand_len);
 
                 let out_slice = std::slice::from_raw_parts_mut(mem_base.add(out_ptr), max_len);
+
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
+
                 let mut writer = WasmBufferWriter { buffer: out_slice, pos: 0 };
 
                 // Setting up MiniJinja and Render.
@@ -101,6 +105,9 @@ pub unsafe extern "C" fn trampoline_dispatch(
                     Ok(_) => *ret_ptr = writer.pos as u64,
                     Err(_) => *ret_ptr = 0,
                 }
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_Render | DurationUs: {}", start_compute.elapsed().as_micros());
 
                 true
             }

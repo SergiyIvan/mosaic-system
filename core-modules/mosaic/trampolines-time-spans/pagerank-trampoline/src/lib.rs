@@ -42,11 +42,18 @@ pub unsafe extern "C" fn trampoline_dispatch(
                     pr_len,
                 );
 
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
+
                 // Execute function.
                 pagerank(edges_slice, pr_slice, iterations);
 
                 // Write back return value. 1 means success.
                 *ret_ptr = 1;
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_Pagerank | DurationUs: {}", start_compute.elapsed().as_micros());
+
                 true
             }
             _ => false, // Unknown function requested.

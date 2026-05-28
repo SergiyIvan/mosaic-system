@@ -106,11 +106,18 @@ pub unsafe extern "C" fn trampoline_dispatch(
                     max_out_len,
                 );
 
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
+
                 // Execute function.
                 let visited_count = bfs(edges_slice, out_slice, num_nodes, start_node);
 
                 // Write back return value.
                 *ret_ptr = visited_count as u64;
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_BFS | DurationUs: {}", start_compute.elapsed().as_micros());
+
                 true
             }
             "host_mst" => {
@@ -138,11 +145,18 @@ pub unsafe extern "C" fn trampoline_dispatch(
                     max_out_len,
                 );
 
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
+
                 // Execute function.
                 let edges_in_tree = mst(edges_slice, out_slice, num_nodes);
 
                 // Write back return value.
                 *ret_ptr = edges_in_tree as u64;
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_MST | DurationUs: {}", start_compute.elapsed().as_micros());
+
                 true
             }
             _ => false, // Unknown function requested.

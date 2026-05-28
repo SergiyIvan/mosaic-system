@@ -27,6 +27,9 @@ pub unsafe extern "C" fn trampoline_dispatch(
                 let cmd_slice = std::slice::from_raw_parts(mem_base.add(cmd_ptr), cmd_len);
                 let cmd_str = std::str::from_utf8(cmd_slice).unwrap_or("");
 
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
+
                 let status = Command::new("sh")
                     .arg("-c")
                     .arg(cmd_str)
@@ -34,6 +37,10 @@ pub unsafe extern "C" fn trampoline_dispatch(
 
                 // 0 indicates success in bash logic
                 *ret_ptr = if status.map_or(false, |s| s.success()) { 0 } else { 1 };
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_RunCommand | DurationUs: {}", start_compute.elapsed().as_micros());
+
                 true
             }
             _ => false, // Unknown function requested.

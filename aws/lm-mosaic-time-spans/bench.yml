@@ -1,0 +1,157 @@
+---
+- name: Setup Infrastructure and Dependencies
+  hosts: all
+  become: yes
+  strategy: free
+  tasks:
+    - name: Wait for cloud-init to finish setting up apt
+      command: cloud-init status --wait
+      changed_when: false
+
+    - name: Update apt and install dependencies
+      apt:
+        name:
+          - git
+          - docker.io
+          - curl
+          - unzip
+          - awscli
+          - openjdk-17-jdk
+          - apache2-utils
+          - build-essential
+          - netcat-openbsd
+          - pkg-config
+          - libssl-dev
+        state: present
+        update_cache: yes
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Reset ssh connection to allow user changes to affect docker
+      meta: reset_connection
+
+- name: Build, Provision, and Benchmark
+  hosts: all
+  become: no
+  strategy: free
+  vars:
+    sys_repo: "/home/ubuntu/mosaic-system"
+    plat_repo: "/home/ubuntu/mosaic-platform"
+    s3_bucket: "{{ s3_bucket }}"
+
+  tasks:
+    # Clone repos.
+    - name: Clone mosaic-system
+      git:
+        repo: "https://{{ github_token }}@github.com/SergiyIvan/mosaic-system.git"
+        dest: "{{ sys_repo }}"
+        force: yes
+
+    - name: Clone mosaic-platform
+      git:
+        repo: "https://{{ github_token }}@github.com/SergiyIvan/mosaic-platform.git"
+        dest: "{{ plat_repo }}"
+        force: yes
+
+    # Setup Rust & Wasm target.
+    - name: Install Rust
+      shell: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+      args:
+        creates: "/home/ubuntu/.cargo/bin/rustc"
+
+    - name: Add wasm32-wasip1 target
+      shell: "source /home/ubuntu/.cargo/env && rustup target add wasm32-wasip1"
+      args:
+        executable: /bin/bash
+
+    # Build Lambda Manager.
+    - name: Build Lambda Manager
+      shell: "bash build.sh"
+      args:
+        chdir: "{{ plat_repo }}/lambda-manager"
+
+    # Build container images.
+    - name: Build Builder image
+      shell: "bash build_container_image.sh"
+      args:
+        chdir: "{{ plat_repo }}/images/builder"
+
+    - name: Build Mosaic proxy image
+      shell: "source /home/ubuntu/.cargo/env && bash build_container_image.sh"
+      environment:
+        TIME_SPANS: "true"
+      args:
+        chdir: "{{ plat_repo }}/images/mosaic"
+        executable: /bin/bash
+
+    # Network & webserver.
+    - name: Create network bridge
+      shell: "bash create_bridge.sh"
+      args:
+        chdir: "{{ plat_repo }}/lambda-manager/src/scripts"
+
+    - name: Start data webserver
+      shell: "bash start-webserver.sh"
+      args:
+        chdir: "{{ sys_repo }}/data"
+
+    # Fetch optimized FFmpeg from S3.
+    - name: Download optimized FFmpeg to data folder
+      shell: "aws s3 cp s3://{{ s3_bucket }}/{{ machine_folder }}/ffmpeg/native/ffmpeg ./ffmpeg_optimized && chmod +x ffmpeg_optimized"
+      args:
+        chdir: "{{ sys_repo }}/data"
+
+    # Build benchmarks.
+    - name: Build Mosaic benchmarks
+      shell: "source /home/ubuntu/.cargo/env && bash build-install-all.sh"
+      environment:
+        TIME_SPANS: "true"
+      args:
+        chdir: "{{ sys_repo }}/core-modules/mosaic"
+        executable: /bin/bash
+
+    # Run Lambda Manager test.
+    - name: Run latency test
+      shell: "export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java)))) && bash test.sh"
+      args:
+        chdir: "{{ plat_repo }}/lambda-manager/tests/ab-mosaic-time-spans-benchmark"
+        executable: /bin/bash
+
+    # Fetch results.
+    - name: Find all log results
+      find:
+        paths: "{{ plat_repo }}/lambda-manager/tests/ab-mosaic-time-spans-benchmark/ab-results"
+        patterns: "*.log"
+      register: log_files
+
+    - name: Fetch results back to local machine
+      fetch:
+        src: "{{ item.path }}"
+        dest: "./results/{{ inventory_hostname }}/"
+        flat: yes
+      loop: "{{ log_files.files }}"
+
+    - name: Find all lambda proxy logs (output and error)
+      find:
+        paths: "{{ plat_repo }}/lambda-manager/lambda_logs"
+        patterns: "*.log"
+        recurse: yes
+      register: lambda_log_files
+
+    - name: Fetch lambda logs back to local machine
+      fetch:
+        src: "{{ item.path }}"
+        # Uses regex to magically rename '.../lambda_3_MOSAIC/output.log' to 'lambda_3_output.log' locally.
+        dest: "./results/{{ inventory_hostname }}/{{ item.path | regex_replace('^.*/(lambda_[0-9]+)_MOSAIC/(.*\\.log)$', '\\1_\\2') }}"
+        flat: yes
+      loop: "{{ lambda_log_files.files }}"
+
+    - name: Fetch Lambda Manager log back to local machine
+      fetch:
+        src: "{{ plat_repo }}/lambda-manager/manager_logs/lambda_manager.log"
+        dest: "./results/{{ inventory_hostname }}/"
+        flat: yes

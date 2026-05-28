@@ -30,6 +30,9 @@ pub unsafe extern "C" fn trampoline_dispatch(
                 let in_slice = std::slice::from_raw_parts(mem_base.add(in_ptr), in_len);
                 let out_slice = std::slice::from_raw_parts_mut(mem_base.add(out_ptr), max_len);
 
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
+
                 // Compression Level: 3 is standard. We use 9 to make the CPU work a bit harder for the benchmark.
                 let compression_level = 9;
 
@@ -39,6 +42,9 @@ pub unsafe extern "C" fn trampoline_dispatch(
                     Ok(size) => *ret_ptr = size as u64,
                     Err(_) => *ret_ptr = 0,
                 }
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_Compress | DurationUs: {}", start_compute.elapsed().as_micros());
 
                 true
             }

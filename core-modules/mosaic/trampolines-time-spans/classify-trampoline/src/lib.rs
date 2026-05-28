@@ -31,6 +31,9 @@ pub unsafe extern "C" fn trampoline_dispatch(
                 let model_slice = std::slice::from_raw_parts(mem_base.add(model_ptr), model_len);
                 let img_slice = std::slice::from_raw_parts(mem_base.add(img_ptr), img_len);
 
+                // ---> START CORE COMPUTE SPAN
+                let start_compute = std::time::Instant::now();
+
                 let mut cursor = Cursor::new(model_slice);
                 let model = match tract_onnx::onnx()
                     .model_for_read(&mut cursor).unwrap()
@@ -80,6 +83,10 @@ pub unsafe extern "C" fn trampoline_dispatch(
                 }
 
                 *ret_ptr = max_idx as u64;
+
+                // ---> END CORE COMPUTE SPAN
+                println!("*** Span: TrampCompute_Infer | DurationUs: {}", start_compute.elapsed().as_micros());
+
                 true
             }
             _ => false, // Unknown function requested.
