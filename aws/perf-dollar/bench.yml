@@ -36,7 +36,7 @@
   tasks:
     - name: Clone private repository
       git:
-        repo: "https://{{ github_token }}@{{ repo_url }}"
+        repo: "https://{{ repo_url }}"
         dest: "{{ repo_dir }}"
         force: yes
 

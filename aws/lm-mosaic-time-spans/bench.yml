@@ -47,13 +47,13 @@
     # Clone repos.
     - name: Clone mosaic-system
       git:
-        repo: "https://{{ github_token }}@github.com/SergiyIvan/mosaic-system.git"
+        repo: "https://github.com/SergiyIvan/mosaic-system.git"
         dest: "{{ sys_repo }}"
         force: yes
 
     - name: Clone mosaic-platform
       git:
-        repo: "https://{{ github_token }}@github.com/SergiyIvan/mosaic-platform.git"
+        repo: "https://github.com/SergiyIvan/mosaic-platform.git"
         dest: "{{ plat_repo }}"
         force: yes
 

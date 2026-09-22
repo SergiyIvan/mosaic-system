@@ -10,12 +10,6 @@ function DIR {
 
 set -e
 
-if [ -z "$GITHUB_TOKEN" ]; then
-    echo "Error: GITHUB_TOKEN environment variable is not set."
-    echo "Usage: GITHUB_TOKEN=ghp_yourtoken ./run.sh"
-    exit 1
-fi
-
 # Extract the dynamically generated S3 bucket name from Terraform output.
 cd "$(DIR)/../setup-s3"
 S3_BUCKET=$(terraform output -raw s3_bucket_name)
@@ -42,7 +36,7 @@ echo "[2/4] Provisioning and Benchmarking (Ansible)..."
 export ANSIBLE_HOST_KEY_CHECKING=False
 # Passing the GitHub token as an extra variable to Ansible.
 ansible-playbook -i inventory.ini bench.yml \
-    --extra-vars "github_token=$GITHUB_TOKEN s3_bucket=$S3_BUCKET"
+    --extra-vars "s3_bucket=$S3_BUCKET"
 
 echo "[3/4] Benchmarks complete! Results downloaded to $RESULT_DIR directory."
 

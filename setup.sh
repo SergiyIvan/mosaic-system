@@ -6,6 +6,3 @@ export AWS_SECRET_ACCESS_KEY="<secret-access-key>"
 
 # The default region (must match the region in main.tf).
 export AWS_DEFAULT_REGION="us-east-1"
-
-# Github token for cloning private repositories.
-export GITHUB_TOKEN="<token>"

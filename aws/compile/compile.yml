@@ -33,37 +33,12 @@
     target_benchmarks: "{{ target_benchmarks | default('') }}"
 
   tasks:
-    # - name: Install Rust toolchain
-    #   shell: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
-    #   args:
-    #     creates: "/home/ubuntu/.cargo/bin/rustc"
-
-    # - name: Add WebAssembly target
-    #   shell: "source /home/ubuntu/.cargo/env && rustup target add wasm32-wasip1"
-    #   args:
-    #     executable: /bin/bash
 
     - name: Clone private repository
       git:
-        repo: "https://{{ github_token }}@{{ repo_url }}"
+        repo: "https://{{ repo_url }}"
         dest: "{{ repo_dir }}"
         force: yes
-
-    # - name: Execute native compilation script
-    #   shell: |
-    #     source /home/ubuntu/.cargo/env
-    #     bash compile-native.sh "{{ configs }}" "{{ s3_bucket }}" "{{ inventory_hostname }}" "{{ target_benchmarks }}"
-    #   args:
-    #     chdir: "{{ repo_dir }}/aws/compile"
-    #     executable: /bin/bash
-
-    # - name: Execute mosaic compilation script
-    #   shell: |
-    #     source /home/ubuntu/.cargo/env
-    #     bash compile-mosaic.sh "{{ configs }}" "{{ s3_bucket }}" "{{ inventory_hostname }}" "{{ target_benchmarks }}"
-    #   args:
-    #     chdir: "{{ repo_dir }}/aws/compile"
-    #     executable: /bin/bash
 
     - name: Execute FFmpeg compilation script
       shell: |
