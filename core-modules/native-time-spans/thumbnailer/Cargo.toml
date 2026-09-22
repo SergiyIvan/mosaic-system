@@ -1,0 +1,18 @@
+[package]
+name = "thumbnailer"
+version = "0.1.0"
+edition = "2021"
+description = """
+SeBS Thumbnailer
+"""
+
+[lib]
+name = "thumbnailer"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+ureq = "3.2"
+image = "0.25"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+proxy-guest = { path = "../../shared/proxy-guest" }

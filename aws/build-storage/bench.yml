@@ -1,0 +1,152 @@
+---
+- name: Setup Infrastructure and Dependencies
+  hosts: all
+  become: yes
+  strategy: free
+  tasks:
+    - name: Wait for cloud-init to finish setting up apt
+      command: cloud-init status --wait
+      changed_when: false
+
+    - name: Update apt and install dependencies
+      apt:
+        name:
+          - git
+          - docker.io
+          - curl
+          - unzip
+          - awscli
+          - openjdk-17-jdk
+          - apache2-utils
+          - build-essential
+          - netcat-openbsd
+          - pkg-config
+          - libssl-dev
+        state: present
+        update_cache: yes
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Reset ssh connection to allow user changes to affect docker
+      meta: reset_connection
+
+- name: Measure Storage Requirements
+  hosts: all
+  become: no
+  strategy: free
+  vars:
+    sys_repo: "/home/ubuntu/mosaic-system"
+    plat_repo: "/home/ubuntu/mosaic-platform"
+    s3_bucket: "{{ s3_bucket }}"
+
+  tasks:
+    # Clone repos
+    - name: Clone mosaic-system
+      git:
+        repo: "https://{{ github_token }}@github.com/SergiyIvan/mosaic-system.git"
+        dest: "{{ sys_repo }}"
+        force: yes
+
+    - name: Clone mosaic-platform
+      git:
+        repo: "https://{{ github_token }}@github.com/SergiyIvan/mosaic-platform.git"
+        dest: "{{ plat_repo }}"
+        force: yes
+
+    # Setup Rust & Wasm targets
+    - name: Install Rust
+      shell: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+      args:
+        creates: "/home/ubuntu/.cargo/bin/rustc"
+
+    - name: Add wasm32-wasip1 target
+      shell: "source /home/ubuntu/.cargo/env && rustup target add wasm32-wasip1"
+      args:
+        executable: /bin/bash
+
+    # Build builder container image.
+    - name: Build Builder image
+      shell: "bash build_container_image.sh"
+      args:
+        chdir: "{{ plat_repo }}/images/builder"
+
+    # Start webserver & fetch FFmpeg binaries.
+    - name: Start data webserver (Downloads ISA FFmpeg)
+      shell: "bash start-webserver.sh"
+      args:
+        chdir: "{{ sys_repo }}/data"
+
+    - name: Download optimized FFmpeg to data folder (CPU FFmpeg)
+      shell: "aws s3 cp s3://{{ s3_bucket }}/{{ machine_folder }}/ffmpeg/native/ffmpeg ./ffmpeg_optimized && chmod +x ffmpeg_optimized"
+      args:
+        chdir: "{{ sys_repo }}/data"
+
+    # Measure source code sizes (XaaS baseline) BEFORE building
+    - name: Measure Native Benchmark Source Sizes
+      shell: |
+        echo "================ SOURCE SIZES ================" > /tmp/sizes.txt
+        for bench in bfs classify compression dna dynamic-html mst pagerank thumbnailer uploader video-processing; do
+          size=$(find $bench -type f -exec stat -c "%s" {} + | awk '{s+=$1} END {print s}')
+          echo "source/native/$bench $size" >> /tmp/sizes.txt
+        done
+      args:
+        chdir: "{{ sys_repo }}/core-modules/native"
+        executable: /bin/bash
+
+    - name: Measure source sizes of some libraries
+      shell: |
+        for lib in pagerank-lib squiggle-lib; do
+          size=$(find $lib -type f -exec stat -c "%s" {} + | awk '{s+=$1} END {print s}')
+          echo "source/lib/$lib $size" >> /tmp/sizes.txt
+        done
+      args:
+        chdir: "{{ sys_repo }}/core-modules/native"
+        executable: /bin/bash
+
+    - name: Measure FFmpeg Source Size (Shallow Clone)
+      shell: |
+        git clone --depth 1 https://github.com/FFmpeg/FFmpeg.git /tmp/FFmpeg_src
+        rm -rf /tmp/FFmpeg_src/.git
+        size=$(find /tmp/FFmpeg_src -type f -exec stat -c "%s" {} + | awk '{s+=$1} END {print s}')
+        echo "source/lib/ffmpeg $size" >> /tmp/sizes.txt
+      args:
+        executable: /bin/bash
+
+    # Build benchmarks
+    - name: Build Mosaic benchmarks
+      shell: "source /home/ubuntu/.cargo/env && bash build-install-all.sh"
+      args:
+        chdir: "{{ sys_repo }}/core-modules/mosaic"
+        executable: /bin/bash
+
+    - name: Build Native benchmarks
+      shell: "source /home/ubuntu/.cargo/env && bash build-install-all.sh"
+      args:
+        chdir: "{{ sys_repo }}/core-modules/native"
+        executable: /bin/bash
+
+    # Measure Binary Sizes
+    - name: Measure Compiled Binary Sizes
+      shell: |
+        echo "================ BINARY SIZES ================" >> /tmp/sizes.txt
+        # Find all files in data/apps, get their paths and sizes in bytes
+        find . -type f -exec stat -c "%n %s" {} + >> /tmp/sizes.txt
+
+        # Add the FFmpeg binary sizes
+        cd ../
+        stat -c "./ffmpeg_isa %s" ffmpeg >> /tmp/sizes.txt
+        stat -c "./ffmpeg_cpu %s" ffmpeg_optimized >> /tmp/sizes.txt
+      args:
+        chdir: "{{ sys_repo }}/data/apps"
+        executable: /bin/bash
+
+    # Fetch the results back to the local machine
+    - name: Fetch size results back to local machine
+      fetch:
+        src: "/tmp/sizes.txt"
+        dest: "./results/{{ inventory_hostname }}/sizes.txt"
+        flat: yes

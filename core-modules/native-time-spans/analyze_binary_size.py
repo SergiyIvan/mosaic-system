@@ -3,7 +3,7 @@
 import os
 import re
 import subprocess
-import json
+import sys
 
 # Convert everything to KiB for uniform math
 def to_kib(value_str, unit):
@@ -31,14 +31,14 @@ def main():
 
     print("Starting binary size analysis...")
 
-    # Data to export to JSON for the plotting script
-    json_output_data = {}
+    # Store results for the LaTeX table
+    latex_data = []
 
     for bench in benchmarks:
         bench_dir = os.path.join(base_dir, bench)
         if not os.path.isdir(bench_dir):
             print(f"\nSkipping {bench} (directory not found).")
-            json_output_data[bench] = {"user_pct": 0.0, "lib_pct": 0.0}
+            latex_data.append((bench, 0.0, 0.0, 0.0))
             continue
 
         print(f"\n======================================")
@@ -51,7 +51,7 @@ def main():
             res = subprocess.run(cmd, cwd=bench_dir, capture_output=True, text=True, check=True)
         except subprocess.CalledProcessError:
             print(f"Failed to run cargo-bloat for {bench}.")
-            json_output_data[bench] = {"user_pct": 0.0, "lib_pct": 0.0}
+            latex_data.append((bench, 0.0, 0.0, 0.0))
             continue
 
         total_file_size_kib = 0.0
@@ -78,39 +78,32 @@ def main():
                 size_val, unit = fs_match.groups()
                 total_file_size_kib = to_kib(size_val, unit)
 
-        # -------------------------------------------------------------
-        # SPECIAL CASE: Add FFmpeg to video-processing dependencies
-        # FFmpeg binary size: 79826272 bytes
-        # -------------------------------------------------------------
-        if bench == "video-processing":
-            ffmpeg_kib = 79826272.0 / 1024.0
-            deps_size_kib += ffmpeg_kib
-            total_file_size_kib += ffmpeg_kib
-
         base_app_size = total_file_size_kib - deps_size_kib
 
-        if total_file_size_kib > 0:
-            lib_pct = (deps_size_kib / total_file_size_kib) * 100.0
-            user_pct = (base_app_size / total_file_size_kib) * 100.0
-        else:
-            lib_pct = 0.0
-            user_pct = 0.0
+        # Calculate Percentage
+        pct = (deps_size_kib / total_file_size_kib * 100.0) if total_file_size_kib > 0 else 0.0
 
         print(f"  Total Binary Size : {total_file_size_kib:8.2f} KiB")
         print(f"  Dependencies Size : {deps_size_kib:8.2f} KiB")
         print(f"  Base App Overhead : {base_app_size:8.2f} KiB (Total - Deps)")
-        print(f"  Dependency Ratio  : {lib_pct:8.2f} %")
+        print(f"  Dependency Ratio  : {pct:8.2f} %")
 
-        json_output_data[bench] = {
-            "lib_pct": lib_pct,
-            "user_pct": user_pct
-        }
+        latex_data.append((bench, base_app_size, deps_size_kib, pct))
 
-    # Dump the JSON for the plotting script
-    output_json_path = os.path.join(base_dir, "binary-size-ratio.json")
-    with open(output_json_path, 'w') as f:
-        json.dump(json_output_data, f, indent=4)
-    print(f"\nSuccessfully wrote binary breakdown to {output_json_path}")
+    # ==========================================
+    # Print the final LaTeX snippet
+    # ==========================================
+    print("\n\n" + "="*40)
+    print(" LaTeX Table Snippet")
+    print("="*40 + "\n")
+
+    for bench, user_code, deps, pct in latex_data:
+        # Format variables to match the desired Latex table output
+        # User Code size is rounded to the nearest integer
+        # Deps size has 1 decimal place (e.g., 1.5)
+        # Percentage is rounded to the nearest integer
+        row = f"  {bench:<18} &  {int(round(user_code)):<6} &   {deps:.1f} ({int(round(pct))}) \\\\"
+        print(row)
 
 if __name__ == "__main__":
     main()
