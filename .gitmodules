@@ -1,0 +1,6 @@
+[submodule "platform"]
+	path = platform
+	url = https://github.com/cloudsys-dpss-inescid/mosaic-platform.git
+[submodule "scheduler"]
+	path = scheduler
+	url = https://github.com/cloudsys-dpss-inescid/mosaic-scheduler.git
