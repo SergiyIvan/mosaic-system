@@ -31,7 +31,7 @@ sleep 30
 
 echo "[2/3] Compiling and Uploading (Ansible)..."
 ansible-playbook -i inventory.ini compile.yml \
-    --extra-vars "target_bucket=$S3_BUCKET repo_url=github.com/SergiyIvan/mosaic-system.git target_benchmarks='$TARGET_BENCHMARKS'"
+    --extra-vars "target_bucket=$S3_BUCKET repo_url=github.com/cloudsys-dpss-inescid/mosaic.git target_benchmarks='$TARGET_BENCHMARKS'"
 
 echo "  Compilation complete! All artifacts are safely stored in S3."
 

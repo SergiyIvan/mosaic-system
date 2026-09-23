@@ -4,8 +4,8 @@
   become: yes # Run as root for installations.
   strategy: free
   vars:
-    repo_url: "github.com/SergiyIvan/mosaic-system.git"
-    repo_dir: "/home/ubuntu/mosaic-system"
+    repo_url: "github.com/cloudsys-dpss-inescid/mosaic.git"
+    repo_dir: "/home/ubuntu/mosaic"
 
   tasks:
     - name: Update apt and install dependencies
@@ -29,7 +29,7 @@
   become: no # Run as the normal 'ubuntu' user from here on.
   strategy: free
   vars:
-    repo_dir: "/home/ubuntu/mosaic-system"
+    repo_dir: "/home/ubuntu/mosaic"
     s3_bucket: "{{ s3_bucket }}"
     target_benchmarks: "{{ target_benchmarks }}"
 

@@ -37,7 +37,7 @@ sleep 30
 echo "[2/4] Provisioning and Benchmarking (Ansible)..."
 
 ansible-playbook -i inventory.ini bench.yml \
-    --extra-vars "repo_url=github.com/SergiyIvan/mosaic-system.git s3_bucket=$S3_BUCKET target_benchmarks='$TARGET_BENCHMARKS'"
+    --extra-vars "repo_url=github.com/cloudsys-dpss-inescid/mosaic.git s3_bucket=$S3_BUCKET target_benchmarks='$TARGET_BENCHMARKS'"
 
 echo "[3/4] Benchmarks complete! Results downloaded to $RESULT_DIR directory."
 

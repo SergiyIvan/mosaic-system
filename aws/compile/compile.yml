@@ -4,8 +4,8 @@
   become: yes # Run as root for installations.
   strategy: free
   vars:
-    repo_url: "github.com/SergiyIvan/mosaic-system.git"
-    repo_dir: "/home/ubuntu/mosaic-system"
+    repo_url: "github.com/cloudsys-dpss-inescid/mosaic.git"
+    repo_dir: "/home/ubuntu/mosaic"
 
   tasks:
     - name: Install dependencies
@@ -27,7 +27,7 @@
   become: no
   strategy: free
   vars:
-    repo_dir: "/home/ubuntu/mosaic-system"
+    repo_dir: "/home/ubuntu/mosaic"
     # Passed in via the wrapper script.
     s3_bucket: "{{ target_bucket }}"
     target_benchmarks: "{{ target_benchmarks | default('') }}"

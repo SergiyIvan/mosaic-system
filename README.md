@@ -144,7 +144,7 @@ After the experiment is finished, you can generate the plot (`storage-footprint.
 ```
 $ cd aws/build-storage/results
 # The argument is a path to trace that will be generated in Experiment #4
-$ python3 plot-storage.py ../../../mosaic-scheduler/azure-dataset/output/trace-60min.csv
+$ python3 plot-storage.py ../../../scheduler/azure-dataset/output/trace-60min.csv
 # Open `storage-footprint.pdf` to see the results.
 ```
 

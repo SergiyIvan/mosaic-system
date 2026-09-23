@@ -39,21 +39,21 @@
   become: no
   strategy: free
   vars:
-    sys_repo: "/home/ubuntu/mosaic-system"
+    sys_repo: "/home/ubuntu/mosaic"
     plat_repo: "/home/ubuntu/mosaic-platform"
     s3_bucket: "{{ s3_bucket }}"
 
   tasks:
     # Clone repos.
-    - name: Clone mosaic-system
+    - name: Clone mosaic
       git:
-        repo: "https://github.com/SergiyIvan/mosaic-system.git"
+        repo: "https://github.com/cloudsys-dpss-inescid/mosaic.git"
         dest: "{{ sys_repo }}"
         force: yes
 
     - name: Clone mosaic-platform
       git:
-        repo: "https://github.com/SergiyIvan/mosaic-platform.git"
+        repo: "https://github.com/cloudsys-dpss-inescid/mosaic-platform.git"
         dest: "{{ plat_repo }}"
         force: yes
 
